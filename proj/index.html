@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
+  <script src="https://5gvci.com/act/files/tag.min.js?z=12167612" data-cfasync="false" async></script>
+  <meta name="google-adsense-account" content="ca-pub-4212215226858112">
+ <meta name="theme-color" content="#FF2E93">
+ <link rel="icon" href="favicon.png">
+  <meta name="author" content="LOUIS DAKING">
+  <link rel="manifest" href="manifest.json">
+<meta name="creator" content="LOUIS DAKING">
+<meta name="publisher" content="KIREZI CANJE">
+
+<meta name="copyright" content="Copyright © 2026 LOUIS DAKING">
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1B0A17">
+  
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "KIREZI CANJE",
+  "url": "https://kirezicanje.com/",
+  "creator": {
+    "@type": "Person",
+    "name": "LOUIS DAKING",
+    "url": "https://daking.site.je/"
+  },
+  "copyrightHolder": {
+    "@type": "Person",
+    "name": "LOUIS DAKING"
+  },
+  "copyrightYear": 2026
+}
+</script>
+
+  <title>KIREZI CANJE</title>
+
+  <!-- Fonts -->
+  <meta name="author" content="LOUIS DAKING">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="social.css">
+  <link rel="stylesheet" href="offline.css">
+  <link rel="stylesheet" href="icons.css">
+  <link rel="stylesheet" href="appstore.css">
+  <link rel="stylesheet" href="reels.css">
+
+  <!-- Install App: styles (self-contained, no other file needed) -->
+  <style>
+    #openInstallBtn {
+      position: fixed;
+    bottom: 90px;
+      right: 50%;
+  transform: translateX(50%);
+      z-index: 900;
+      display: none;               /* shown by script only when the app is not installed */
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border: none;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #ff4d8d, #c2185b);
+      color: #fff;
+      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: .2px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(194, 24, 91, .45);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+    #openInstallBtn:active { transform: scale(.95); box-shadow: 0 2px 8px rgba(194, 24, 91, .4); }
+    #openInstallBtn svg { width: 16px; height: 16px; fill: currentColor; flex-shrink: 0; }
+
+    #installModal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #ffffff;
+      z-index: 1000;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      color: #1f1f1f;
+      text-align: left;
+      animation: installSlideUp .25s ease;
+    }
+    #installModal.open { display: block; }
+    @keyframes installSlideUp {
+      from { transform: translateY(40px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    #installModal .shots::-webkit-scrollbar { display: none; }
+    #installBtn:disabled { opacity: .7; cursor: default; }
+    #installBtn:active:not(:disabled) { filter: brightness(.92); }
+    #installHint.ios-tip { color: #1f1f1f; background: #f1f3f4; border-radius: 8px; padding: 10px; line-height: 1.5; }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===== INSTALL APP BUTTON (opens the install screen) ===== -->
+  <button id="openInstallBtn" type="button" aria-label="Install app">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>
+    DOWNLOAD APPLICATION 
+  </button>
+
+  <!-- ===== INSTALL SCREEN (Google Play Store style) - hidden until the button is clicked ===== -->
+  <div id="installModal" role="dialog" aria-modal="true" aria-label="Install KIREZI CANJE">
+
+    <!-- Top Bar -->
+    <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px;">
+      <button id="closeInstallBtn" type="button" aria-label="Close" style="background: none; border: none; font-size: 22px; cursor: pointer; color: #1f1f1f; padding: 4px;">&#8592;</button>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <span style="background: #FFF1F6; color: #c2185b; padding: 4px 10px; border-radius: 16px; font-weight: bold; font-size: 13px;">★ <span data-store="rating">—</span></span>
+        <span style="font-size: 18px; cursor: pointer; color: #5f6368;">🔖</span>
+        <span style="font-size: 18px; cursor: pointer; color: #5f6368;">&#8285;</span>
+      </div>
+    </div>
+
+    <div style="padding: 0 16px 24px;">
+
+      <!-- App Header Section -->
+      <div style="display: flex; gap: 16px; margin-top: 8px; margin-bottom: 16px;">
+        <div class="app_image" style="background-image: url('/screens/icon-192.png'); width: 72px; height: 72px; border-radius: 16px; background-size: cover; background-position: center; flex-shrink: 0; box-shadow: 0 2px 6px rgba(0,0,0,0.12);"></div>
+        <div style="display: flex; flex-direction: column; justify-content: center;">
+          <h2 style="margin: 0; font-size: 22px; font-weight: 500; color: #1f1f1f; line-height: 1.2;">KIREZI CANJE</h2>
+          <div style="color: #c2185b; font-weight: 600; font-size: 14px; margin-top: 4px;">LOUIS DAKING</div>
+          <div style="color: #5f6368; font-size: 12px; margin-top: 2px;">apk is 100% free</div>
+        </div>
+      </div>
+
+      <!-- App Metrics / Stats Bar (live numbers from Supabase) -->
+      <div style="display: flex; align-items: center; justify-content: space-around; margin: 20px 0; border-bottom: 1px solid #f0f0f0; padding-bottom: 16px; text-align: center;">
+        <div style="flex: 1;">
+          <div style="font-weight: bold; font-size: 14px; color: #1f1f1f;"><span data-store="rating">—</span> ★</div>
+          <div style="color: #5f6368; font-size: 11px; margin-top: 2px;"><span data-store="reviews">0</span> reviews</div>
+        </div>
+        <div style="width: 1px; height: 24px; background: #e0e0e0;"></div>
+        <div style="flex: 1;">
+          <div style="font-weight: bold; font-size: 14px; color: #1f1f1f;" data-store="downloads">0</div>
+          <div style="color: #5f6368; font-size: 11px; margin-top: 2px;">Downloads</div>
+        </div>
+        <div style="width: 1px; height: 24px; background: #e0e0e0;"></div>
+        <div style="flex: 1;">
+          <div style="font-weight: bold; font-size: 14px; color: #1f1f1f;">7+</div>
+          <div style="color: #5f6368; font-size: 11px; margin-top: 2px;">Rated for 7+</div>
+        </div>
+      </div>
+
+      <!-- Main Install Button & Status -->
+      <div style="margin-bottom: 20px;">
+        <button id="installBtn" type="button" style="width: 100%; background: linear-gradient(135deg,#FF2E93,#FF7A59); color: #ffffff; border: none; padding: 13px; border-radius: 999px; font-weight: 500; font-size: 15px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.15); transition: background 0.2s;">
+          INSTALL
+        </button>
+        <div id="installHint" style="text-align: center; color: #5f6368; font-size: 12px; margin-top: 8px;">
+          Install on phone. More devices available.
+        </div>
+      </div>
+
+      <!-- Screenshots Carousel -->
+      <div style="margin-bottom: 24px;">
+        <div class="shots" style="display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; scrollbar-width: none; -ms-overflow-style: none;">
+          <img src="/screens/Screenshot_20261027_143213_Spck Editor.jpg" alt="Screenshot 1" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143258_Spck Editor.jpg" alt="Screenshot 2" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143324_Spck Editor.jpg" alt="Screenshot 3" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143340_Spck Editor.jpg" alt="Screenshot 4" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143407_Spck Editor.jpg" alt="Screenshot 5" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143457_Spck Editor.jpg" alt="Screenshot 6" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143528_Spck Editor.jpg" alt="Screenshot 7" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+          <img src="/screens/Screenshot_20261027_143557_Spck Editor.jpg" alt="Screenshot 8" loading="lazy" style="height: 220px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: 0 1px 4px rgba(0,0,0,0.12);">
+        </div>
+      </div>
+
+      <!-- About This App Section -->
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h3 style="margin: 0; font-size: 18px; font-weight: 500; color: #1f1f1f;">About this app</h3>
+          <span style="font-size: 18px; color: #5f6368; cursor: pointer;">&#8594;</span>
+        </div>
+        <p style="color: #5f6368; font-size: 14px; line-height: 1.5; margin: 0 0 16px 0;">
+          KEREZI CANJE halp you to meet your soulmate.
+        </p>
+
+        <!-- Category Tags -->
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <span style="border: 1px solid #dadce0; border-radius: 16px; padding: 6px 12px; font-size: 12px; color: #3c4043; font-weight: 500;">#1 top free in entertainment</span>
+          <span style="border: 1px solid #dadce0; border-radius: 16px; padding: 6px 12px; font-size: 12px; color: #3c4043; font-weight: 500;">kirezi </span>
+        </div>
+      </div>
+
+      <!-- Ratings, reviews and comments (filled by appstore.js) -->
+      <div id="storeReviews" style="margin-top: 26px;"></div>
+
+    </div>
+  </div>
+
+  <!-- ===== INSTALL APP LOGIC ===== -->
+  <script>
+  (function () {
+    var deferredPrompt = null;
+
+    var openBtn   = document.getElementById('openInstallBtn');
+    var modal     = document.getElementById('installModal');
+    var closeBtn  = document.getElementById('closeInstallBtn');
+    var installBtn  = document.getElementById('installBtn');
+    var installHint = document.getElementById('installHint');
+
+    var HINT_DEFAULT = 'Install on phone. More devices available.';
+    var APP_PAGE = 'app.html';   // where people download the APK when the web app cannot be installed (use 'https://app.kirezicanje.com' if the page is hosted there)
+
+    var ua = navigator.userAgent || '';
+    var isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var isAndroid = /Android/i.test(ua);
+
+    // Is the app already running as an installed app?
+    function isInstalledApp() {
+      var standalone = false;
+      try {
+        standalone = window.matchMedia('(display-mode: standalone)').matches ||
+                     window.matchMedia('(display-mode: fullscreen)').matches ||
+                     window.matchMedia('(display-mode: minimal-ui)').matches;
+      } catch (e) {}
+      return standalone ||
+             window.navigator.standalone === true ||
+             (document.referrer || '').indexOf('android-app://') === 0 ||
+             /; wv\)/i.test(ua);
+    }
+
+    function resetBtn() {
+      installBtn.disabled = false;
+      installBtn.innerText = 'INSTALL';
+      installBtn.style.opacity = '1';
+    }
+
+    function showHint(text, isTip) {
+      installHint.innerText = text;
+      installHint.className = isTip ? 'ios-tip' : '';
+    }
+
+    // ---- open / close the install screen ----
+    function openInstall() {
+      if (isInstalledApp()) return;
+      resetBtn();
+      showHint(HINT_DEFAULT, false);
+      if (isIOS) {
+        showHint('To install on iPhone/iPad: tap the Share button, then "Add to Home Screen".', true);
+      }
+      modal.classList.add('open');
+      modal.scrollTop = 0;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeInstall() {
+      modal.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function hideEverything() {
+      closeInstall();
+      openBtn.style.display = 'none';
+    }
+
+    // Show the "Install app" button only if the app isn't installed yet
+    if (isInstalledApp()) {
+      openBtn.style.display = 'none';
+    } else {
+      openBtn.style.display = 'inline-flex';
+    }
+
+    openBtn.addEventListener('click', openInstall);
+    closeBtn.addEventListener('click', closeInstall);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeInstall();
+    });
+
+    // ---- browser install prompt (Chrome / Edge / Samsung Internet) ----
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();               // keep the event so INSTALL can trigger it later
+      deferredPrompt = e;
+    });
+
+    window.addEventListener('appinstalled', function () {
+      deferredPrompt = null;
+      hideEverything();
+    });
+
+    // ---- INSTALL button ----
+    installBtn.addEventListener('click', function () {
+
+      // 1) Real PWA install (best option)
+      if (deferredPrompt) {
+        installBtn.disabled = true;
+        installBtn.innerText = 'INSTALLING...';
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(function (choice) {
+          deferredPrompt = null;
+          if (choice && choice.outcome === 'accepted') {
+            if (window.kcRegisterPwa) window.kcRegisterPwa();   // counts the download
+            hideEverything();
+          } else {
+            resetBtn();
+          }
+        }).catch(function () { location.href = APP_PAGE; });   // the install failed: use the download page
+        return;
+      }
+
+      // 2) iPhone / iPad: no install API, show instructions
+      if (isIOS) {
+        showHint('Tap the Share button (square with arrow), then choose "Add to Home Screen".', true);
+        return;
+      }
+
+      // 3) the browser cannot install the web app: go to the download page (APK + reviews)
+      installBtn.disabled = true;
+      installBtn.innerText = 'OPENING…';
+      location.href = APP_PAGE;
+      return;
+    });
+  })();
+  </script>
+  <script type="module">
+    // numbers + reviews + comments inside the install screen
+    import { loadStats, fillStats, mountReviews, registerDownload, who } from './appstore.js';
+    var mounted = false;
+    function openStore() {
+      loadStats().then(fillStats).catch(function () {});
+      if (!mounted) { mounted = true; mountReviews(document.getElementById('storeReviews')); }
+    }
+    var ob = document.getElementById('openInstallBtn');
+    if (ob) ob.addEventListener('click', openStore);
+    window.kcRegisterPwa = function () { var w = who(); return registerDownload('pwa', w.name, w.phone); };
+  </script>
+  
+  
+  
+  
+
+  <!-- notification (toast) -->
+  <div class="notification" id="animation">
+    <p id="not_mess">notification</p>
+  </div>
+
+  <button class="loading" id="loading">•</button>
+
+  <div class="brand_couple" id="brand_couple"><h1 style="
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;">KIREZI CANJE</h1></div>
+
+  <div class="loginpage" id="loginpage">
+
+    <div class="forcreate forpic">
+      <div class="profilepic">
+        <input type="file" class="logins" id="profilepic" accept="image/*">
+        <label class="piclabel" for="profilepic">Ifoto yawe (profile picture)</label>
+      </div>
+    </div>
+
+    <div class="forlog">
+      <button class="callicon"></button>
+      <input type="tel" inputmode="numeric" maxlength="12" id="email" class="logins" placeholder="nimero ya terefone">
+    </div>
+
+    <div class="forcreate">
+      <button class="namebut"></button>
+      <input type="text" id="full_name" class="logins" placeholder="amazina yawe">
+    </div>
+
+    <div class="forcreate">
+      <button class="sexicon"></button>
+      <select class="logins" name="" id="sex">
+        <option value="">umuhungu/umukobwa</option>
+        <option value="umuhungu">umuhungu</option>
+        <option value="umukobwa">umukobwa</option>
+        <option value="umugabo">umugabo</option>
+        <option value="umugore">umugore</option>
+      </select>
+    </div>
+
+     <div class="forcreate">
+    <button class="igihugubut"></button>
+    <select class="logins" id="address" name="country" required>
+      <option value="">Hitamwo igihugu</option>
+      
+      <!-- Ibihugu bishirwa imbere -->
+      <option value="Burundi">Burundi</option>
+      <option value="Rwanda">Rwanda</option>
+      <option value="United Arab Emirates (UAE)">United Arab Emirates (UAE)</option>
+      <option value="Arabie saoudite">Arabie saoudite</option>
+      <option value="America">America (United States)</option>
+      <option value="Canada">Canada</option>
+      
+      <!-- Ibindi bihugu -->
+      <option value="Kenya">Kenya</option>
+      <option value="Tanzania">Tanzania</option>
+      <option value="Uganda">Uganda</option>
+      <option value="Democratic Republic of the Congo">Democratic Republic of the Congo</option>
+      <option value="South Africa">South Africa</option>
+      <option value="Nigeria">Nigeria</option>
+      <option value="France">France</option>
+      <option value="Belgium">Belgium</option>
+      <option value="Germany">Germany</option>
+      <option value="United Kingdom">United Kingdom</option>
+      <option value="Italy">Italy</option>
+      <option value="Spain">Spain</option>
+      <option value="Switzerland">Switzerland</option>
+      <option value="Netherlands">Netherlands</option>
+      <option value="Sweden">Sweden</option>
+      <option value="Norway">Norway</option>
+      <option value="Australia">Australia</option>
+      <option value="China">China</option>
+      <option value="India">India</option>
+      <option value="Japan">Japan</option>
+      <option value="Qatar">Qatar</option>
+      <option value="Kuwait">Kuwait</option>
+      <option value="Oman">Oman</option>
+      <option value="Bahrain">Bahrain</option>
+      <option value="Egypt">Egypt</option>
+      <option value="Morocco">Morocco</option>
+      
+    </select>
+  </div>
+
+    <div class="forcreate">
+      <button class="imyakabut"></button>
+      <input type="number" id="age" class="logins" placeholder="imyaka ufise">
+    </div>
+
+    <div class="forlog">
+      <button class="passbut"></button>
+      <input type="password" class="logins" placeholder="password (ikwiza 6)" id="password" autocomplete="current-password">
+      <button type="button" class="eyebtn" id="eyebtn" aria-label="Show password"></button>
+    </div>
+  </div>
+
+  <div class="cre" id="cre">
+    <button class="create" id="crea" onclick="login()">se connecter</button>
+    <button class="create" id="createACOUNT" onclick="createACOUT()" style="display: none;">CREER UN COMPTE</button>
+    <div>
+      <button class="creat" id="creat" onclick="create()">CREER UN COMPTE</button>
+    </div>
+  </div>
+
+  <div class="navigation" id="navigation">
+    <div class="bottomnav"></div>
+    <div class="divi">
+      <div class="navitem"><button class="messages" onclick="onpenmessages()"></button><span class="navbadge" id="navBadge"></span></div>
+      <button class="search" onclick="search()"></button>
+      <button class="peekyourfav" onclick="peek()"></button>
+      <button class="status" onclick="openstatus()"></button>
+      <button class="profile" onclick="openuser()"></button>
+    </div>
+  </div>
+
+  <!-- feed -->
+  <div id="allofthem"></div>
+
+  <!-- messages list + chat -->
+  <div class="messenger" id="messenger">
+    <div class="pagebar">
+      <h3>Messages</h3>
+    </div>
+    <div class="selectuser" id="selectuser"></div>
+    <div class="inbox" id="inbox"></div>
+  </div>
+
+  <!-- profile -->
+  <div class="userJournal" id="userJournal"></div>
+
+  <!-- search page (filled by social.js) -->
+  <div class="searchPage" id="searchPage"></div>
+
+  <!-- status (filled by main.js) -->
+  <div class="statusPage" id="statusPage"></div>
+
+  <!-- status viewer (WhatsApp style, filled by main.js) -->
+  <div class="sviewer" id="sviewer">
+    <div class="sv-stage" id="svStage"></div>
+    <div class="sv-hit" id="svHit"></div>
+    <p class="sv-caption" id="svCaption"></p>
+    <div class="sv-head">
+      <div class="sv-bars" id="svBars"></div>
+      <div class="sv-top">
+        <div class="sv-avatar" id="svAvatar"></div>
+        <div class="sv-who"><b id="svName"></b><small id="svTime"></small></div>
+        <button class="sv-close" onclick="closeStatusViewer()" aria-label="Close">✕</button>
+      </div>
+    </div>
+    <!-- like a status -->
+    <div class="sv-actions">
+      <button class="likebtn" id="svLike" aria-label="Like"></button>
+      <button class="likecount" id="svLikeCount">0</button>
+    </div>
+  </div>
+
+  <!-- gallery of one user (filled by social.js) -->
+  <div class="gallery" id="galleryPage"></div>
+
+  <!-- full screen post viewer (filled by social.js) -->
+  <div class="pviewer" id="pviewer"></div>
+
+  <!-- small bottom sheet: user chooser, edit, delete (filled by social.js) -->
+  <div class="modal" id="sheetModal" onclick="if(event.target===this)closeSheet()">
+    <div class="sheet" id="sheetBox"></div>
+  </div>
+
+  <!-- new post sheet -->
+  <div class="modal" id="postModal">
+    <div class="sheet">
+      <h4>Post nshasha</h4>
+      <div class="postwho"><div class="pav" id="postAvatar"></div><b id="postName"></b></div>
+      <textarea id="postCaption" placeholder="Andika ikintu... (si ngombwa)"></textarea>
+      <div class="pickbtns">
+        <button type="button" class="pickbtn" onclick="pickPostFile('image')"><span class="big">🖼️</span>Hitamwo ifoto<small>Photo</small></button>
+        <button type="button" class="pickbtn" onclick="pickPostFile('video')"><span class="big">🎥</span>Hitamwo video<small>Video</small></button>
+      </div>
+      <input type="file" id="postFile" accept="image/*,video/*" hidden>
+      <div class="postprev" id="postPrev"></div>
+      <div class="kindrow">
+        <label><input type="radio" name="postkind" value="feed" checked> POST</label>
+        <label><input type="radio" name="postkind" value="status"> Status</label>
+      </div>
+      <div class="sheetbtns">
+        <button class="btn-cancel" onclick="closePostModal()">Cancel</button>
+        <button class="btn-pub" onclick="publishPost()">Publish</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- who liked -->
+  <div class="modal" id="likersModal" onclick="if(event.target===this)closeLikers()">
+    <div class="sheet">
+      <h4 id="likersTitle">Likes</h4>
+      <div id="likersList"></div>
+    </div>
+  </div>
+
+  <!-- Project -->
+  <script type="module" src="main.js"></script>
+</body>
+</html>

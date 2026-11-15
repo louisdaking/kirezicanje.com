@@ -1,0 +1,8 @@
+{
+  "name": "kirezi-canje",
+  "private": true,
+  "version": "1.0.0",
+  "description": "KIREZI CANJE - static site + Vercel Node.js API (creator monetization)",
+  "engines": { "node": ">=18" },
+  "scripts": { "test": "node tests/run.js" }
+}

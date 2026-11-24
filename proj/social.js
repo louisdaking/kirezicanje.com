@@ -13,6 +13,7 @@
 // =====================================================
 
 import { jobs, isNetworkError } from './offline.js'
+import { smartSearch, expandWords } from './smartsearch.js'      // the search brain (typos, Kirundi/French/English, filters in plain words)
 
 export function initSocial(ctx) {
   const { supabase, me, profileCache, esc, fmtTime, showmessage, waitAsec, getTalkedMap, viewedSet } = ctx
@@ -424,7 +425,7 @@ export function initSocial(ctx) {
     const label = kind === 'profile' ? 'Profile photo' : kind === 'status' ? 'Status' : ''
     const media = isVideo(p)
       ? `<video src="${esc(p.media_url)}" controls autoplay playsinline></video>`
-      : `<img src="${esc(p.media_url)}" alt="" draggable="false">`
+      : window.kcImg(p.media_url, { kind: 'full', cls: 'pv-img' })
     const { n, liked } = p.virtual ? { n: 0, liked: false } : likeState(p.id)
     const when = p.created_at ? fmtTime(p.created_at) : ''
 
@@ -622,7 +623,7 @@ export function initSocial(ctx) {
     const n = p.virtual ? 0 : likeState(p.id).n
     const media = isVideo(p)
       ? `<video src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video>`
-      : `<img src="${esc(p.media_url)}" alt="" loading="lazy">`
+      : window.kcImg(p.media_url, { kind: 'small' })
     return `<button class="g-item" onclick="${click}(${i})">
       ${media}
       ${isVideo(p) ? play : ''}
@@ -708,47 +709,6 @@ export function initSocial(ctx) {
     if (p.age != null && p.age !== '' && isFinite(+p.age)) return +p.age
     if (p.birth_year && isFinite(+p.birth_year)) return new Date().getFullYear() - +p.birth_year
     return null
-  }
-  function lev(a, b) {            // number of typos between two words
-    if (Math.abs(a.length - b.length) > 3) return 9
-    const row = Array.from({ length: b.length + 1 }, (_, j) => j)
-    for (let i = 1; i <= a.length; i++) {
-      let prev = row[0]
-      row[0] = i
-      for (let j = 1; j <= b.length; j++) {
-        const tmp = row[j]
-        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1))
-        prev = tmp
-      }
-    }
-    return row[b.length]
-  }
-  // how well does this person match what was typed? 0 = no match
-  function scorePerson(p, tokens) {
-    const name = norm(p.full_name)
-    const words = name.split(/\s+/).filter(Boolean)
-    const place = norm(p.address)
-    let total = 0
-    for (const t of tokens) {
-      let best = 0
-      for (const w of words) {
-        if (w === t) best = Math.max(best, 100)
-        else if (w.startsWith(t)) best = Math.max(best, 80)
-        else if (t.length >= 3 && w.includes(t)) best = Math.max(best, 45)
-        else if (t.length >= 4) {
-          const d = Math.min(lev(t, w), lev(t, w.slice(0, t.length)))
-          if (d <= (t.length >= 7 ? 2 : 1)) best = Math.max(best, 30 - d * 5)    // typo friendly
-        }
-      }
-      if (!best && place) {
-        if (place.startsWith(t)) best = 22
-        else if (t.length >= 3 && place.includes(t)) best = 15
-      }
-      if (!best) return 0         // every word typed must match something
-      total += best
-    }
-    if (name.startsWith(tokens[0])) total += 10
-    return total
   }
   function highlight(text, tokens) {
     const raw = String(text || '')
@@ -926,43 +886,61 @@ export function initSocial(ctx) {
     }
 
     // ---------- something typed ----------
-    const tokens = norm(q).split(/\s+/).filter(Boolean)
     const talked = await talkedMap()
     if (mySeq !== S.seq) return
     const mine = (profileCache[me] || {}).address
-    const people = pool
-      .map(p => ({ p, s: scorePerson(p, tokens) }))
-      .filter(x => x.s > 0)
-      .map(x => ({ p: x.p, s: x.s + (talked[x.p.id] ? 3 : 0) + (x.p.address && x.p.address === mine ? 2 : 0) }))
-      .sort((a, b) => b.s - a.s || String(a.p.full_name).localeCompare(String(b.p.full_name)))
-      .slice(0, 60)
+    const res = smartSearch(pool, q, { mine, talked, following: (id) => window.kcIsFollowing && window.kcIsFollowing(id) })
+    const tokens = res.tokens
+    const people = res.list.map(x => x)
 
+    let animated = false        // the rows rise only the first time (not again when the posts arrive)
     const render = () => {
-      let html = `<div class="s-sec"><h5>People</h5><span>${people.length}</span></div>`
-      html += people.length ? people.map(x => personRow(x.p, tokens)).join('')
-        : `<p class="s-none">ntawe twaronse yitwa “${esc(q)}”${filtersOn ? ' with these filters' : ''}.</p>`
+      let html = ''
+      // "this is what I understood" (the user sees the brain working)
+      if (res.parsed.chips.length) {
+        html += `<div class="s-understood">${res.parsed.chips.map(c => `<span class="s-u"><i>${c[0]}</i>${esc(c[1])}</span>`).join('')}${res.relaxed ? '<span class="s-u soft">no exact age match, showing close results</span>' : ''}</div>`
+      }
+      html += `<div class="s-sec"><h5>People</h5><span>${people.length}</span></div>`
+      html += people.length ? people.map((x, i) => personRow(x.p, tokens).replace('class="s-row"', animated ? 'class="s-row"' : `class="s-row" style="--i:${Math.min(i, 12)}"`)).join('')
+        : `<p class="s-none">ntawe twaronse yitwa “${esc(q)}”${filtersOn ? ' with these filters' : ''}.</p>
+           ${res.suggestion ? `<button class="s-did" onclick="searchRecent(this)" data-q="${esc(res.suggestion)}">Wari ushaka <b>${esc(res.suggestion)}</b>? <span>Did you mean…</span></button>` : ''}`
       if (S.posts.length) {
         html += `<div class="s-sec"><h5>Posts</h5><span>${S.posts.length}</span></div>
           <div class="g-grid s-grid">${S.posts.map((p, i) => thumbHTML(p, i, 'searchPostOpen')).join('')}</div>`
       }
       $('sBody').innerHTML = html
+      animated = true
     }
     S.posts = []
     render()
 
-    // posts whose caption has the words (feed posts only, status stays private to its viewers)
-    if (q.length >= 2) {
-      const pattern = '%' + q.replace(/[%_\\,()]/g, ' ').trim() + '%'
-      const { data } = await supabase
-        .from('posts').select('*, post_likes(user_id)')
-        .eq('kind', 'feed').ilike('caption', pattern)
-        .order('created_at', { ascending: false }).limit(18)
-      if (mySeq !== S.seq || !data) return
-      remember(data)
-      await Promise.all([...new Set(data.map(p => p.user_id))].map(ensureProfile))
-      if (mySeq !== S.seq) return
-      S.posts = data.map(p => store.get(String(p.id)))
-      render()
+    // posts whose caption has the words (or words that mean the same: urukundo = love = amour)
+    // feed posts only, status stays private to its viewers
+    const baseWords = tokens.length ? tokens : []
+    if (baseWords.length && q.length >= 2) {
+      const raw = q.toLowerCase().split(/\s+/)
+      const words = [...new Set([...expandWords(baseWords), ...raw.filter(w => w.length >= 3)])]
+        .map(w => w.replace(/[^\p{L}\p{N}]/gu, '')).filter(w => w.length >= 2).slice(0, 12)
+      if (words.length) {
+        const orFilter = words.map(w => `caption.ilike.%${w}%`).join(',')
+        const { data } = await supabase
+          .from('posts').select('*, post_likes(user_id)')
+          .eq('kind', 'feed').or(orFilter)
+          .order('created_at', { ascending: false }).limit(40)
+        if (mySeq !== S.seq || !data) return
+        const exact = new Set(baseWords)
+        const scored = data.map(p => {
+          const cap = norm(p.caption)
+          let sc = 0
+          words.forEach(w => { if (cap.includes(norm(w))) sc += exact.has(norm(w)) ? 3 : 1 })
+          return { p, sc: sc * 10 + Math.min(10, (p.post_likes || []).length) }
+        }).sort((a, b) => b.sc - a.sc).slice(0, 18).map(x => x.p)
+        remember(scored)
+        await Promise.all([...new Set(scored.map(p => p.user_id))].map(ensureProfile))
+        if (mySeq !== S.seq) return
+        S.posts = scored.map(p => store.get(String(p.id)))
+        render()
+      }
     }
   }
 

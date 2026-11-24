@@ -1,7 +1,8 @@
 
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
-import { initSocial } from './social.js'   // search, gallery, full-screen viewer, user chooser, likes
+import { initSocial } from './social.js'
+import { uploadPhoto, compress } from './imgload.js'   // blur-up loading, data saver, smaller uploads   // search, gallery, full-screen viewer, user chooser, likes
 import { offlineFetch, setCacheUser, clearOfflineCache, forceFresh, outbox, jobs, isNetworkError, savedSession, stale, initConnectionBar, registerServiceWorker } from './offline.js'   // works without internet
 import { initPush, enablePush, disablePush } from './push.js'   // notifications when the app is closed
 import { initBackNav } from './backnav.js'   // phone Back button: closes things, goes back, asks before leaving
@@ -110,14 +111,26 @@ function startMessageWatcher(me, hooks) {
 // what was done without internet is sent by these, one by one, when the internet is back
 const safeName = (n) => String(n || 'file').replace(/[^\w.\-]+/g, '_')
 jobs.on('post', async (p, blob) => {
-  const path = `${p.user_id}/${crypto.randomUUID()}-${safeName(p.name)}`
-  const up = await supabase.storage.from('posts').upload(path, blob, { contentType: p.type, upsert: false })
-  if (up.error) throw up.error
-  const { data: url } = supabase.storage.from('posts').getPublicUrl(up.data.path)
-  const ins = await supabase.from('posts').insert([{ user_id: p.user_id, kind: p.kind, media_url: url.publicUrl, media_type: p.type, caption: p.caption || null }])
+  let path, type = p.type
+  if ((p.type || '').startsWith('image/')) {
+    // the photo is made smaller first (and gets a light copy + a tiny preview), so it loads fast for everybody
+    const r = await uploadPhoto(supabase, 'posts', p.user_id, blob)
+    path = r.path; type = r.type
+  } else {
+    path = `${p.user_id}/${crypto.randomUUID()}-${safeName(p.name)}`
+    const up = await supabase.storage.from('posts').upload(path, blob, { contentType: p.type, upsert: false })
+    if (up.error) throw up.error
+    path = up.data.path
+  }
+  const { data: url } = supabase.storage.from('posts').getPublicUrl(path)
+  const ins = await supabase.from('posts').insert([{ user_id: p.user_id, kind: p.kind, media_url: url.publicUrl, media_type: type, caption: p.caption || null }])
   if (ins.error) throw ins.error
 })
 jobs.on('chatfile', async (p, blob) => {
+  if ((p.type || '').startsWith('image/')) {          // a photo in a chat: smaller file, same look
+    const c = await compress(blob, { maxSide: 1280, quality: 0.78 })
+    if (c && c.main.size < blob.size) { blob = c.main; p = { ...p, type: 'image/jpeg', name: safeName(p.name).replace(/\.[^.]+$/, '') + '.jpg', size: c.main.size } }
+  }
   const path = `${p.sender_id}/${crypto.randomUUID()}-${safeName(p.name)}`
   const up = await supabase.storage.from('files').upload(path, blob, { contentType: p.type || 'application/octet-stream', upsert: false })
   if (up.error) throw up.error
@@ -325,7 +338,7 @@ function messageBodyHTML(m, cls) {
   if (m.file_url) {
     const type = m.file_type || ''
     if (type.startsWith('image/')) {
-      return `<img class="chatimg" src="${esc(m.file_url)}" alt="" onclick="window.open('${esc(m.file_url)}','_blank')">`
+      return window.kcImg(m.file_url, { cls: 'chatimg', kind: 'feed', attrs: `onclick="window.open('${esc(m.file_url)}','_blank')"` })
     }
     if (type.startsWith('video/')) {
       return `<video class="chatimg" src="${esc(m.file_url)}" controls preload="metadata" playsinline></video>`
@@ -690,8 +703,8 @@ function svShow() {
     const img = document.createElement('img')
     img.alt = ''
     img.onload = () => { sv.ready = true }
-    img.onerror = () => { sv.ready = true }
-    img.src = p.media_url
+    img.onerror = () => { if (img.src !== p.media_url) img.src = p.media_url; else sv.ready = true }   // light copy failed: the original
+    img.src = window.kcPick ? window.kcPick(p.media_url, 'full') : p.media_url
     stage.appendChild(img)
   }
 
@@ -828,7 +841,7 @@ async function checkiflog() {
       // tap the photo / video = open it full screen
       const media = isVideo
         ? `<div class="mediawrap" onclick="openFeedPost('${p.id}')"><video class="postmedia" src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video><span class="playbadge">▶</span></div>`
-        : `<div class="mediawrap" onclick="openFeedPost('${p.id}')"><img class="postmedia" src="${esc(p.media_url)}" alt="" loading="lazy"></div>`
+        : `<div class="mediawrap" onclick="openFeedPost('${p.id}')">${window.kcImg(p.media_url, { cls: 'postmedia', kind: 'feed' })}</div>`
       return `
   <div class="post" id="post-${p.id}">
     <div class="userinfos">
@@ -1778,18 +1791,8 @@ async function checkiflog() {
           showmessage('konte yakozwe. comfirmation email.');
         }
 
-        const extension = file.name.split('.').pop().toLowerCase();
-        const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
-
-        const { data: uploaded, error: uploadError } =
-          await supabase.storage
-            .from('avatars')
-            .upload(path, file, {
-              contentType: file.type,
-              upsert: false
-            });
-
-        if (uploadError) throw uploadError;
+        // smaller picture + a 160 px avatar copy + tiny preview (throws like supabase if the upload fails)
+        const uploaded = await uploadPhoto(supabase, 'avatars', user.id, file, { maxSide: 1080, quality: 0.82 });
 
         const { data: urlData } = supabase.storage
           .from('avatars')

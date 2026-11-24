@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v12'
+const VERSION = 'kc-v13'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'
@@ -20,6 +20,10 @@ const SHELL = [
   'app.html',
   'main.js',
   'social.js',
+  'smartsearch.js',
+  'imgload.js',
+  'glow.js',
+  'glow.css',
   'offline.js',
   'backnav.js',
   'push.js',
@@ -113,7 +117,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url)
 
   // never touch Supabase data / login / realtime (the app keeps its own offline copy)
-  if (url.hostname.endsWith('.supabase.co') && !url.pathname.startsWith('/storage/v1/object/public/')) return
+  if (url.hostname.endsWith('.supabase.co') && !url.pathname.startsWith('/storage/v1/object/public/') && !url.pathname.startsWith('/storage/v1/render/image/public/')) return
   // our own backend (/api/...) carries private money data: never cache it, never serve it offline
   if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return
   // videos are streamed in pieces: leave them alone

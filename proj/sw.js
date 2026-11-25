@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v13'
+const VERSION = 'kc-v14'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'
@@ -27,6 +27,7 @@ const SHELL = [
   'offline.js',
   'backnav.js',
   'push.js',
+  'call.js',
   'appstore.js',
   'style.css',
   'social.css',

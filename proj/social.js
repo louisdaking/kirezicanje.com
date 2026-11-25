@@ -16,7 +16,7 @@ import { jobs, isNetworkError } from './offline.js'
 import { smartSearch, expandWords } from './smartsearch.js'      // the search brain (typos, Kirundi/French/English, filters in plain words)
 
 export function initSocial(ctx) {
-  const { supabase, me, profileCache, esc, fmtTime, showmessage, waitAsec, getTalkedMap, viewedSet, notifyActivity } = ctx
+  const { supabase, me, profileCache, esc, fmtTime, showmessage, waitAsec, getTalkedMap, viewedSet } = ctx
   const $ = (id) => document.getElementById(id)
   const DAY = 24 * 60 * 60 * 1000
 
@@ -96,8 +96,6 @@ export function initSocial(ctx) {
       p.post_likes = before
       syncLikeUI(id)
       window.softError(res.error, 'like failed')
-    } else if (!had && notifyActivity) {
-      notifyActivity({ type: 'like', post_id: p.id })
     }
   }
 
@@ -132,14 +130,12 @@ export function initSocial(ctx) {
       ? await supabase.from('post_likes').insert([{ post_id: j.post_id, user_id: j.user_id }])
       : await supabase.from('post_likes').delete().eq('post_id', j.post_id).eq('user_id', j.user_id)
     if (r.error && r.error.code !== '23505') throw r.error
-    if (!r.error && j.want && notifyActivity) notifyActivity({ type: 'like', post_id: j.post_id })
   })
   jobs.on('follow', async (j) => {
     const r = j.want
       ? await supabase.from('follows').insert([{ follower_id: j.user_id, following_id: j.target }])
       : await supabase.from('follows').delete().eq('follower_id', j.user_id).eq('following_id', j.target)
     if (r.error && r.error.code !== '23505') throw r.error
-    if (!r.error && j.want && notifyActivity) notifyActivity({ type: 'follow', target_id: j.target })
   })
 
   // ---------------------------------------------------
@@ -182,11 +178,7 @@ export function initSocial(ctx) {
       window.softError(res.error, 'follow failed')
       return
     }
-    if (!had) {
-      if (!res.error && notifyActivity) notifyActivity({ type: 'follow', target_id: id })
-      const u = await ensureProfile(id)
-      showmessage('You follow ' + (u.full_name || 'this person') + ' ✅')
-    }
+    if (!had) { const u = await ensureProfile(id); showmessage('You follow ' + (u.full_name || 'this person') + ' ✅') }
     followCounts(id)
   }
   // the numbers on a profile page
@@ -446,15 +438,14 @@ export function initSocial(ctx) {
         </div>
         ${own ? `<button class="pv-btn" onclick="pvMenu()" aria-label="More">⋯</button>` : ''}
       </div>
-      <div class="pv-stage" id="pvStage" data-media-post="${esc(p.id)}">${media}</div>
+      <div class="pv-stage" id="pvStage">${media}</div>
       ${pv.list.length > 1 && pv.i > 0 ? `<button class="pv-arrow l" onclick="pvNav(-1)" aria-label="Previous">‹</button>` : ''}
       ${pv.list.length > 1 && pv.i < pv.list.length - 1 ? `<button class="pv-arrow r" onclick="pvNav(1)" aria-label="Next">›</button>` : ''}
       <div class="pv-bottom">
         ${p.caption ? `<p class="pv-caption">${esc(p.caption)}</p>` : ''}
         <div class="pv-actions">
           ${p.virtual ? '' : `<button class="likebtn ${liked ? 'liked' : ''}" data-post="${esc(p.id)}" onclick="toggleLike('${esc(p.id)}')" aria-label="Like"></button>
-          <button class="likecount" data-post="${esc(p.id)}" onclick="showLikers('${esc(p.id)}')">${n} ${n === 1 ? 'like' : 'likes'}</button>
-          <button class="share-post" type="button" onclick="sharePost('${esc(p.id)}')">↗ Share</button>`}
+          <button class="likecount" data-post="${esc(p.id)}" onclick="showLikers('${esc(p.id)}')">${n} ${n === 1 ? 'like' : 'likes'}</button>`}
           <span class="pv-counter">${pv.list.length > 1 ? (pv.i + 1) + ' / ' + pv.list.length : ''}</span>
         </div>
       </div>`
@@ -563,109 +554,17 @@ export function initSocial(ctx) {
     const p = currentOwnPost()
     closeSheet()
     if (!p) return
-    await downloadPost(p.id)
-  }
-  function getPost(id) { return store.get(String(id)) || g.items.find(p => String(p.id) === String(id)) }
-  async function downloadPost(id) {
-    const p = getPost(id)
-    if (!p) return
     try {
-      const response = await fetch(p.media_url)
-      if (!response.ok) throw new Error('The media could not be downloaded.')
-      const blob = await response.blob()
-      const ext = isVideo(p) ? (p.media_type || '').includes('webm') ? 'webm' : 'mp4' : 'jpg'
-      const url = URL.createObjectURL(blob)
+      const blob = await (await fetch(p.media_url)).blob()
       const a = document.createElement('a')
-      a.href = url
-      a.download = 'kirezi-' + Date.now() + '.' + ext
+      a.href = URL.createObjectURL(blob)
+      a.download = 'kirezi-' + Date.now() + (isVideo(p) ? '.mp4' : '.jpg')
       document.body.appendChild(a); a.click(); a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 4000)
-    } catch (error) {
-      console.error('[kirezi] media download failed', error)
-      window.open(p.media_url, '_blank', 'noopener')
-      showmessage('Could not download automatically. Open the media and save it from your browser.')
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+    } catch (e) {
+      window.open(p.media_url, '_blank')
     }
   }
-  async function sharePost(id) {
-    const p = getPost(id)
-    if (!p || p.virtual) return
-    const url = new URL(location.pathname, location.origin)
-    url.searchParams.set('post', p.id)
-    const shareData = { title: 'KIREZI CANJE', text: p.caption || 'See this post on KIREZI CANJE', url: url.href }
-    try {
-      if (navigator.share) await navigator.share(shareData)
-      else if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(url.href)
-        showmessage('Post link copied. Share it with your friends.')
-      } else {
-        window.prompt('Copy this post link:', url.href)
-      }
-    } catch (error) {
-      if (error && error.name !== 'AbortError') {
-        console.error('[kirezi] post share failed', error)
-        showmessage('Could not share this post right now.')
-      }
-    }
-  }
-  function mediaView(id) {
-    const p = getPost(id)
-    closeSheet()
-    if (p) openPostViewer([p], 0)
-  }
-  function mediaManage(id) {
-    const p = getPost(id)
-    if (!p || p.user_id !== me || p.virtual) return
-    openPostViewer([p], 0)
-    pvMenu()
-  }
-  function openMediaActions(id) {
-    const p = getPost(id)
-    if (!p) return
-    const own = p.user_id === me && !p.virtual
-    openSheet(`
-      <h4>Photo &amp; video options</h4>
-      <button class="uc-row" onclick="mediaView('${esc(p.id)}')"><span class="uc-ic">⤢</span><span><b>View full screen</b><small>Open the media and browse it</small></span></button>
-      <button class="uc-row" onclick="closeSheet();downloadPost('${esc(p.id)}')"><span class="uc-ic">↓</span><span><b>Download</b><small>Save this ${isVideo(p) ? 'video' : 'photo'} to your device</small></span></button>
-      ${p.virtual ? '' : `<button class="uc-row" onclick="closeSheet();sharePost('${esc(p.id)}')"><span class="uc-ic">↗</span><span><b>Share post</b><small>Send a link to someone</small></span></button>`}
-      ${own ? `<button class="uc-row danger" onclick="mediaManage('${esc(p.id)}')"><span class="uc-ic">⋯</span><span><b>Manage or delete</b><small>Edit the caption or remove your post</small></span></button>` : ''}`)
-  }
-  ;(function attachMediaHoldActions() {
-    let timer = null
-    let target = null
-    let startX = 0, startY = 0
-    let ignoreClick = false
-    const stop = () => { clearTimeout(timer); timer = null; target = null }
-    document.addEventListener('pointerdown', (event) => {
-      if (event.button !== undefined && event.button !== 0) return
-      const media = event.target.closest('[data-media-post]')
-      if (!media || !media.dataset.mediaPost) return
-      stop()
-      target = media
-      startX = event.clientX
-      startY = event.clientY
-      timer = setTimeout(() => {
-        const id = target && target.dataset.mediaPost
-        if (!id) return
-        ignoreClick = true
-        openMediaActions(id)
-        setTimeout(() => { ignoreClick = false }, 1100)
-      }, 560)
-    }, true)
-    document.addEventListener('pointermove', (event) => {
-      if (target && Math.hypot(event.clientX - startX, event.clientY - startY) > 12) stop()
-    }, true)
-    document.addEventListener('pointerup', stop, true)
-    document.addEventListener('pointercancel', stop, true)
-    document.addEventListener('click', (event) => {
-      if (!ignoreClick || !event.target.closest('[data-media-post]')) return
-      event.preventDefault()
-      event.stopImmediatePropagation()
-      ignoreClick = false
-    }, true)
-    document.addEventListener('contextmenu', (event) => {
-      if (event.target.closest('[data-media-post]')) event.preventDefault()
-    })
-  })()
   function pvConfirmDelete() {
     const p = currentOwnPost()
     if (!p) return
@@ -725,7 +624,7 @@ export function initSocial(ctx) {
     const media = isVideo(p)
       ? `<video src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video>`
       : window.kcImg(p.media_url, { kind: 'small' })
-    return `<button class="g-item" data-media-post="${esc(p.id)}" onclick="${click}(${i})">
+    return `<button class="g-item" onclick="${click}(${i})">
       ${media}
       ${isVideo(p) ? play : ''}
       ${kind === 'status' ? '<span class="g-tag st">Status</span>' : kind === 'profile' ? '<span class="g-tag">Profile</span>' : ''}
@@ -1087,7 +986,6 @@ export function initSocial(ctx) {
   // ---------------------------------------------------
   Object.assign(window, {
     kcRemember: remember, syncLikeUI, toggleLike, showLikers, closeLikers,
-    sharePost, downloadPost, mediaView, mediaManage,
     openSheet, closeSheet,
     openUserChoice, ucGo,
     openPostViewer, closePostViewer, openReels, closeReels, reelsMute, reelsMore, pvNav, pvMenu, pvEdit, pvSaveCaption, pvMove, pvSave, pvConfirmDelete, pvDelete,

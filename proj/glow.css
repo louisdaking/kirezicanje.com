@@ -1,0 +1,268 @@
+/* =========================================================
+   GLOW.CSS  (new file, loaded LAST)
+   The "wow" layer of KIREZI CANJE: motion, hover and press effects,
+   blur-up pictures, floating hearts, smart-search look.
+
+   Rules of this file:
+   - It only ADDS (transform, shadow, filter, animation). It never changes
+     layout, so nothing existing moves or breaks.
+   - Hover effects only where a mouse exists  (@media (hover:hover)).
+   - Weak network / data saver  =>  html.kc-lite  =>  no endless animations.
+   - "Reduce motion" in the phone settings is respected at the bottom.
+   ========================================================= */
+
+:root {
+    --spring: cubic-bezier(.34, 1.56, .64, 1);      /* a little overshoot = playful */
+    --smooth: cubic-bezier(.22, .8, .24, 1);
+    --glow: 0 10px 30px rgba(255, 46, 147, .35);
+    --glow-soft: 0 8px 24px rgba(255, 46, 147, .22);
+}
+
+html { scroll-behavior: smooth; }
+::selection { background: rgba(255, 46, 147, .28); }
+
+/* ---------------------------------------------------------
+   1. PICTURES  (blur-up, like Instagram)
+   --------------------------------------------------------- */
+@keyframes kcShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes kcFadeIn  { from { opacity: .35; } to { opacity: 1; } }
+
+.kc-img {
+    background: linear-gradient(110deg, #f6e7ee 30%, #fff5f9 48%, #f6e7ee 66%);
+    background-size: 200% 100%;
+    animation: kcShimmer 1.4s linear infinite;
+    object-fit: cover;
+    transition: filter .5s var(--smooth), transform .6s var(--smooth);
+}
+.kc-img.kc-blur { filter: blur(16px) saturate(1.2); transform: scale(1.08); animation: none; }
+.kc-img.kc-ready { animation: kcFadeIn .45s ease both; background: none; filter: none; transform: none; }
+.kc-img.kc-failed { opacity: .55; cursor: pointer; }
+.mediawrap, .g-item, .pv-stage { overflow: hidden; }       /* the blurred picture is a bit bigger: cut it */
+.pv-stage .kc-img, .sv-stage .kc-img { background: none; }
+.pv-stage .kc-img.kc-ready { max-width: 100%; max-height: 100%; }
+.g-item .kc-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* tap to load the sharp photo (only shown on a weak network) */
+.kc-hd {
+    position: absolute; right: 14px; bottom: 96px; z-index: 5;
+    height: 34px; min-width: 52px; padding: 0 14px; border-radius: 17px;
+    background: rgba(27, 10, 23, .72); color: #fff; font-weight: 800; font-size: 13px; letter-spacing: .6px;
+    border: 1.5px solid rgba(255, 255, 255, .55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    animation: kcRise .4s var(--spring) both;
+}
+.kc-hd.busy { opacity: .7; }
+.pv-stage { position: relative; }
+
+/* the avatar silhouette fades into the real small picture */
+.kc-av-ready { animation: kcFadeIn .35s ease both; }
+
+/* ---------------------------------------------------------
+   2. ENTRANCES  (cards rise, results settle)
+   --------------------------------------------------------- */
+@keyframes kcRise {
+    from { opacity: 0; transform: translateY(18px) scale(.985); }
+    to   { opacity: 1; transform: none; }
+}
+@keyframes kcPopIn {
+    0% { opacity: 0; transform: scale(.6); }
+    70% { opacity: 1; transform: scale(1.06); }
+    100% { opacity: 1; transform: none; }
+}
+@keyframes kcSlideUp { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+html.kc-js .kc-reveal:not(.kc-in) { opacity: 0; transform: translateY(18px); }
+html.kc-js .kc-reveal.kc-in { animation: kcRise .55s var(--smooth) both; }
+
+.s-row[style*="--i"] { animation: kcRise .42s var(--smooth) both; animation-delay: calc(var(--i, 0) * 45ms); }
+.g-item { animation: kcPopIn .45s var(--smooth) both; }
+.modal .sheet { animation: kcSlideUp .38s var(--spring) both; }
+.notification { transition: transform .45s var(--spring), opacity .3s ease; }
+
+/* ---------------------------------------------------------
+   3. FEED CARDS
+   --------------------------------------------------------- */
+.post { transition: transform .35s var(--smooth), box-shadow .35s var(--smooth); will-change: auto; }
+.mediawrap .postmedia { transition: transform .8s var(--smooth), filter .5s var(--smooth); }
+.playbadge { transition: transform .3s var(--spring); }
+
+.userinfos .avatar { position: relative; transition: transform .3s var(--spring), box-shadow .3s ease; }
+.followmini { transition: transform .2s var(--spring), box-shadow .2s ease, background-color .2s ease; }
+.msgbtn, .s-msg, .addpost, .create, .creat { transition: transform .22s var(--spring), box-shadow .25s ease, filter .2s ease; }
+
+/* like button: pop + color glow */
+@keyframes kcHeartBeat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.35); } 30% { transform: scale(.92); } 45% { transform: scale(1.18); } 60% { transform: scale(1); } }
+.likebtn.kc-pulse { animation: kcHeartBeat .7s var(--smooth); }
+
+/* the big heart of a double tap + the little hearts of a like */
+.kc-bigheart {
+    position: fixed; z-index: 9998; width: 110px; height: 110px; margin: -55px 0 0 -55px; pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23FF2E93'/%3E%3Cstop offset='1' stop-color='%23FF7A59'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") center/contain no-repeat;
+    filter: drop-shadow(0 8px 24px rgba(255, 46, 147, .65));
+    animation: kcBig .9s var(--smooth) forwards;
+}
+@keyframes kcBig {
+    0% { transform: scale(0) rotate(-12deg); opacity: 0; }
+    22% { transform: scale(1.25) rotate(6deg); opacity: 1; }
+    40% { transform: scale(.95) rotate(0); }
+    70% { transform: scale(1.05) translateY(-10px); opacity: 1; }
+    100% { transform: scale(1.1) translateY(-60px); opacity: 0; }
+}
+.kc-mini {
+    position: fixed; z-index: 9998; width: 16px; height: 16px; margin: -8px 0 0 -8px; pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23FF2E93' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") center/contain no-repeat;
+    animation: kcMini .8s ease-out forwards;
+}
+@keyframes kcMini {
+    from { transform: translate(0, 0) scale(.4) rotate(0); opacity: 1; }
+    to   { transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(var(--r)); opacity: 0; }
+}
+
+/* a wave where you tap (any button, card, chip) */
+.kc-tap {
+    position: fixed; z-index: 9999; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle, rgba(255, 46, 147, .45), rgba(255, 122, 89, .25) 60%, transparent 70%);
+    animation: kcTap .55s ease-out forwards;
+}
+@keyframes kcTap { to { transform: scale(7); opacity: 0; } }
+
+/* ---------------------------------------------------------
+   4. BOTTOM BAR
+   --------------------------------------------------------- */
+.navigation button { position: relative; transition: transform .25s var(--spring), opacity .2s ease, background-color .25s ease; }
+@keyframes kcNavPop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.navigation button.active:not(.peekyourfav) { animation: kcNavPop .45s var(--spring); }
+.navigation button.active:not(.peekyourfav)::after {
+    content: ""; position: absolute; left: 50%; bottom: -9px; width: 5px; height: 5px; margin-left: -2.5px;
+    border-radius: 50%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta);
+    animation: kcPopIn .4s var(--spring) both;
+}
+@keyframes kcBeat { 0%, 100% { transform: scale(1); } 14% { transform: scale(1.1); } 28% { transform: scale(1); } 42% { transform: scale(1.07); } 56% { transform: scale(1); } }
+.navigation .peekyourfav { animation: kcBeat 2.8s ease-in-out infinite; }
+.navigation .peekyourfav:active { animation: none; transform: scale(.9); }
+.navigation .peekyourfav::after { display: none; }
+
+/* ---------------------------------------------------------
+   5. SEARCH  (the brain shows what it understood)
+   --------------------------------------------------------- */
+.s-box { transition: box-shadow .3s ease, transform .3s var(--spring), border-color .3s ease; }
+.s-box:focus-within { box-shadow: 0 0 0 3px rgba(255, 46, 147, .28), 0 14px 34px rgba(255, 46, 147, .25); transform: translateY(-1px); }
+.s-box:focus-within .s-ic { animation: kcWiggle .6s ease; }
+@keyframes kcWiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-14deg) scale(1.15); } 60% { transform: rotate(10deg) scale(1.1); } }
+
+.s-understood { display: flex; flex-wrap: wrap; gap: 8px; margin: 2px 0 12px; }
+.s-u {
+    display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 8px; border-radius: 15px;
+    background: linear-gradient(135deg, #fff0f6, #ffe6d9); border: 1.5px solid rgba(255, 46, 147, .25);
+    color: #8a1d52; font-size: 13px; font-weight: 700; animation: kcPopIn .45s var(--spring) both;
+}
+.s-u:nth-child(2) { animation-delay: .06s; }
+.s-u:nth-child(3) { animation-delay: .12s; }
+.s-u:nth-child(4) { animation-delay: .18s; }
+.s-u i { font-style: normal; font-size: 15px; }
+.s-u.soft { background: #fff; border-style: dashed; color: var(--mist); font-weight: 600; }
+
+.s-did {
+    display: block; width: 100%; margin: 10px 0; padding: 14px 16px; border-radius: 18px; text-align: left;
+    background: #fff; border: 1.5px dashed rgba(255, 46, 147, .5); color: var(--ink); font-size: 15px;
+    box-shadow: 0 6px 20px rgba(27, 10, 23, .06); animation: kcRise .4s var(--smooth) both;
+}
+.s-did b { color: var(--magenta); font-family: var(--display); }
+.s-did span { display: block; color: var(--mist); font-size: 12px; margin-top: 2px; }
+
+.chip { transition: transform .2s var(--spring), background .15s ease, color .15s ease, border-color .15s ease, box-shadow .2s ease; }
+.chip.on { animation: kcPopIn .35s var(--spring); box-shadow: 0 8px 18px rgba(255, 46, 147, .32); }
+.s-row { transition: transform .25s var(--spring), box-shadow .25s ease; }
+
+/* ---------------------------------------------------------
+   6. LOGIN  (floating hearts + living title)
+   --------------------------------------------------------- */
+.kc-hearts { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; display: none; }
+.kc-hearts i {
+    position: absolute; bottom: -40px; left: var(--x); width: var(--s); height: var(--s); opacity: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23FF2E93' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") center/contain no-repeat;
+    filter: blur(var(--b, 0px));
+    animation: kcFloat var(--d) linear var(--delay) infinite;
+}
+@keyframes kcFloat {
+    0% { transform: translate(0, 0) rotate(0) scale(.7); opacity: 0; }
+    12% { opacity: .55; }
+    50% { transform: translate(var(--sway), -55vh) rotate(18deg) scale(1); }
+    88% { opacity: .35; }
+    100% { transform: translate(calc(var(--sway) * -1), -112vh) rotate(-14deg) scale(1.15); opacity: 0; }
+}
+@keyframes kcGradientShift { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+.brand_couple h1 {
+    background: linear-gradient(90deg, #fff 0%, #ffb3d4 25%, #FF2E93 50%, #FF7A59 75%, #fff 100%);
+    background-size: 200% auto; -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    animation: kcGradientShift 5s linear infinite;
+    filter: drop-shadow(0 6px 20px rgba(255, 46, 147, .45));
+}
+.logins { transition: box-shadow .25s ease, transform .25s var(--spring), border-color .25s ease; }
+.logins:focus { box-shadow: 0 0 0 3px rgba(255, 46, 147, .28), 0 10px 26px rgba(255, 46, 147, .2); transform: translateY(-1px); outline: none; }
+.forlog, .forcreate { animation: kcRise .5s var(--smooth) both; }
+.forcreate:nth-child(2), .forlog:nth-child(2) { animation-delay: .05s; }
+.forcreate:nth-child(3), .forlog:nth-child(3) { animation-delay: .1s; }
+.forcreate:nth-child(4), .forlog:nth-child(4) { animation-delay: .15s; }
+.forcreate:nth-child(5), .forlog:nth-child(5) { animation-delay: .2s; }
+@keyframes kcGlowPulse { 0%, 100% { box-shadow: 0 8px 22px rgba(255, 46, 147, .35); } 50% { box-shadow: 0 10px 34px rgba(255, 46, 147, .7); } }
+.creat, #crea { animation: kcGlowPulse 2.6s ease-in-out infinite; }
+
+/* ---------------------------------------------------------
+   7. HOVER  (mouse only)  +  PRESS  (everywhere)
+   --------------------------------------------------------- */
+@media (hover: hover) {
+    .post:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(255, 46, 147, .2), 0 6px 18px rgba(27, 10, 23, .1); }
+    .mediawrap:hover .postmedia.kc-ready { transform: scale(1.045); }
+    .mediawrap:hover .playbadge { transform: scale(1.18); }
+    .userinfos .avatar:hover, .s-av:hover { transform: scale(1.1) rotate(-3deg); box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--magenta), 0 10px 22px rgba(255, 46, 147, .45); }
+    .followmini:hover { transform: translateY(-2px) scale(1.05); box-shadow: 0 8px 18px rgba(255, 46, 147, .35); }
+    .msgbtn:hover, .s-msg:hover, .create:hover, .creat:hover, .addpost:hover { transform: translateY(-3px) scale(1.04); box-shadow: var(--glow); filter: brightness(1.06) saturate(1.1); }
+    .chip:hover { transform: translateY(-2px); border-color: var(--magenta); box-shadow: 0 8px 18px rgba(255, 46, 147, .18); }
+    .s-row:hover { transform: translateX(4px) translateY(-1px); box-shadow: 0 10px 28px rgba(255, 46, 147, .16); }
+    .g-item { transition: transform .3s var(--smooth), box-shadow .3s ease; }
+    .g-item:hover { transform: scale(1.04); box-shadow: 0 12px 28px rgba(255, 46, 147, .32); z-index: 2; }
+    .g-item:hover img, .g-item:hover video { filter: saturate(1.15) brightness(1.04); }
+    .navigation button:not(.peekyourfav):hover { opacity: 1; transform: translateY(-4px) scale(1.1); }
+    .navigation .peekyourfav:hover { transform: scale(1.12) rotate(-4deg); }
+    .likebtn:hover { transform: scale(1.18); opacity: .9; }
+    .s-did:hover { transform: translateY(-2px); border-style: solid; }
+    .sheet button:hover, .sheetbtns button:hover, .uc-row:hover { transform: translateY(-2px); }
+    .pv-btn:hover, .sv-close:hover { transform: scale(1.12); }
+    .kc-hd:hover { background: var(--magenta); }
+}
+/* press feedback (touch + mouse) */
+.msgbtn:active, .s-msg:active, .create:active, .creat:active, .followmini:active, .addpost:active, .chip:active { transform: scale(.93); filter: brightness(.95); }
+.post:active { transform: scale(.995); }
+.g-item:active { transform: scale(.96); }
+.likebtn:active { transform: scale(.82); }
+
+/* ---------------------------------------------------------
+   8. POLISH
+   --------------------------------------------------------- */
+.pagebar h3, .brandtitle { letter-spacing: .2px; }
+.s-sec h5 { position: relative; }
+.empty { animation: kcRise .5s var(--smooth) both; }
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: rgba(255, 46, 147, .35); border-radius: 3px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------------------------------------------------------
+   9. WEAK NETWORK / DATA SAVER: calm page, light on battery
+   --------------------------------------------------------- */
+html.kc-lite .kc-hearts { display: none !important; }
+html.kc-lite .navigation .peekyourfav,
+html.kc-lite .creat, html.kc-lite #crea,
+html.kc-lite .brand_couple h1 { animation: none; }
+html.kc-lite .kc-reveal:not(.kc-in) { opacity: 1 !important; transform: none !important; }
+html.kc-lite .kc-img { animation: none; background: #f6e7ee; }
+html.kc-lite .post:hover { transform: none; }
+
+/* ---------------------------------------------------------
+   10. "Reduce motion" in the phone settings
+   --------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    .kc-hearts { display: none !important; }
+}

@@ -54,6 +54,7 @@
   <link rel="stylesheet" href="appstore.css">
   <link rel="stylesheet" href="reels.css">
   <link rel="stylesheet" href="glow.css">
+  <link rel="stylesheet" href="modern.css">
 
   <!-- Install App: styles (self-contained, no other file needed) -->
   <style>
@@ -476,6 +477,30 @@
     <div class="selectuser" id="selectuser"></div>
     <div class="inbox" id="inbox"></div>
   </div>
+
+    <!-- in-app WebRTC call screen -->
+    <div class="call-overlay" id="callOverlay" role="dialog" aria-modal="true" aria-label="Call">
+      <div class="call-card">
+        <button class="call-close" type="button" onclick="endCall()" aria-label="End call">×</button>
+        <div class="call-peer-avatar" id="callPeerAvatar"></div>
+        <h2 id="callPeerName">Call</h2>
+        <p class="call-status" id="callStatus">Connecting…</p>
+        <div class="call-videos" id="callVideos">
+          <video id="callRemoteVideo" autoplay muted playsinline></video>
+          <video id="callLocalVideo" autoplay muted playsinline></video>
+          <audio id="callRemoteAudio" autoplay></audio>
+        </div>
+        <div class="call-controls" id="callControls">
+          <button type="button" id="callMute" onclick="toggleCallMute()" aria-label="Mute microphone">Mic on</button>
+          <button type="button" id="callCamera" onclick="toggleCallCamera()" aria-label="Turn camera off">Camera on</button>
+          <button class="call-end" type="button" onclick="endCall()">End call</button>
+        </div>
+        <div class="call-incoming" id="callIncoming" hidden>
+          <button type="button" class="call-decline" onclick="declineCall()">Decline</button>
+          <button type="button" class="call-accept" onclick="acceptCall()">Answer</button>
+        </div>
+      </div>
+    </div>
 
   <!-- profile -->
   <div class="userJournal" id="userJournal"></div>

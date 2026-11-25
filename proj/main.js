@@ -2,6 +2,7 @@
 
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 import { initSocial } from './social.js'
+import { initCalls } from './calls.js'
 import { uploadPhoto, compress } from './imgload.js'   // blur-up loading, data saver, smaller uploads   // search, gallery, full-screen viewer, user chooser, likes
 import { offlineFetch, setCacheUser, clearOfflineCache, forceFresh, outbox, jobs, isNetworkError, savedSession, stale, initConnectionBar, registerServiceWorker } from './offline.js'   // works without internet
 import { initPush, enablePush, disablePush } from './push.js'   // notifications when the app is closed
@@ -16,6 +17,7 @@ const profileCache = {}   // user id -> profile row (so a chat header can be dra
 // UNREAD / READ SYSTEM + OFFLINE OUTBOX (module level)
 // =====================================================
 let watcher = null, watcherUser = null, watcherHooks = null, badgeTimer = null, flushing = false
+let callClient = null
 let onBackOnlineHandler = null
 let openUrlHandler = null
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'kc-open' && openUrlHandler) openUrlHandler(e.data.url) })
@@ -55,6 +57,7 @@ async function flushOutbox() {
       // a message that waited a long time keeps the time it was written; a fresh one gets the server time
       if (Date.now() - new Date(it.created_at).getTime() < 30000) delete row.created_at
       const { error } = await supabase.from('message').insert([row])
+      if (!error) queuePush({ type: 'message', client_id: row.client_id })
       if (error && error.code !== '23505') {
         if (isNetworkError(error)) break                          // no internet: it stays, with the clock 🕓
         console.error('[kirezi] message not sent', error)
@@ -138,6 +141,7 @@ jobs.on('chatfile', async (p, blob) => {
   const ins = await supabase.from('message').insert([{ client_id: p.client_id, sender_id: p.sender_id, receiver_id: p.receiver_id,
     content: (p.type || '').startsWith('image/') ? '📷 Photo' : '📎 ' + p.name, file_url: url.publicUrl, file_name: p.name, file_type: p.type, file_size: p.size }])
   if (ins.error && ins.error.code !== '23505') throw ins.error
+  if (!ins.error) queuePush({ type: 'message', client_id: p.client_id })
 })
 jobs.on('voice', async (p, blob) => {
   const path = `${p.sender_id}/${crypto.randomUUID()}.${p.ext}`
@@ -147,6 +151,7 @@ jobs.on('voice', async (p, blob) => {
   vpState[url.publicUrl] = { status: 'done', pct: 1, blobUrl: URL.createObjectURL(blob) }     // the sender plays it without downloading again
   const ins = await supabase.from('message').insert([{ client_id: p.client_id, sender_id: p.sender_id, receiver_id: p.receiver_id, content: '🎤 Voice message', audio_url: url.publicUrl }])
   if (ins.error && ins.error.code !== '23505') throw ins.error
+  if (!ins.error) queuePush({ type: 'message', client_id: p.client_id })
 })
 async function runJobs() {
   if (!watcherUser) return
@@ -253,6 +258,43 @@ function showmessage(text) {
   document.getElementById('not_mess').textContent = text
   clearTimeout(notifTimer)
   notifTimer = setTimeout(() => hideHTML('animation'), 4000)
+}
+async function requestPush(event) {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  if (!data.session) return
+  const response = await fetch('/api/notify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + data.session.access_token
+    },
+    body: JSON.stringify(event)
+  })
+  let result = {}
+  try { result = await response.json() } catch { /* handled as an API response error below */ }
+  if (!response.ok) throw new Error(result.error || 'Notification delivery failed')
+  return result
+}
+async function requestCallInvite(invite) {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) throw error
+  if (!data.session) throw new Error('Please sign in again before calling.')
+  const response = await fetch('/api/call-signal', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + data.session.access_token
+    },
+    body: JSON.stringify(invite)
+  })
+  let result = {}
+  try { result = await response.json() } catch { /* handled as an API response error below */ }
+  if (!response.ok) throw new Error(result.error || 'Could not deliver the call invitation.')
+  return result
+}
+function queuePush(event) {
+  requestPush(event).catch(error => console.error('[kirezi] push notification failed', error))
 }
 
 // ---------- developer errors go to the console only (users never see them) ----------
@@ -821,7 +863,22 @@ async function checkiflog() {
     // start the new features (search, gallery, viewer, chooser, likes)
     initSocial({
       supabase, me: data.session.user.id, profileCache, esc, fmtTime, showmessage, waitAsec,
-      getTalkedMap, viewedSet, setNav, openStatusViewer
+      getTalkedMap, viewedSet, setNav, openStatusViewer,
+      notifyActivity: queuePush
+    })
+    if (callClient) callClient.close()
+    callClient = initCalls({
+      supabase,
+      me: data.session.user.id,
+      getProfile: async (id) => {
+        if (profileCache[id]) return profileCache[id]
+        const { data: rows, error: profileError } = await supabase.from('profiles').select('*').eq('id', id)
+        if (profileError) throw profileError
+        if (rows && rows[0]) profileCache[id] = rows[0]
+        return profileCache[id] || {}
+      },
+      sendInvite: requestCallInvite,
+      showmessage
     })
     window.search = window.openSearch          // the search button in the bottom bar
 
@@ -840,8 +897,8 @@ async function checkiflog() {
       const captionText = p.caption || (isPicPost ? 'yashizeko profile nshasha' : '')
       // tap the photo / video = open it full screen
       const media = isVideo
-        ? `<div class="mediawrap" onclick="openFeedPost('${p.id}')"><video class="postmedia" src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video><span class="playbadge">▶</span></div>`
-        : `<div class="mediawrap" onclick="openFeedPost('${p.id}')">${window.kcImg(p.media_url, { cls: 'postmedia', kind: 'feed' })}</div>`
+        ? `<div class="mediawrap" data-media-post="${esc(p.id)}" onclick="openFeedPost('${esc(p.id)}')"><video class="postmedia" src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video><span class="playbadge">▶</span></div>`
+        : `<div class="mediawrap" data-media-post="${esc(p.id)}" onclick="openFeedPost('${esc(p.id)}')">${window.kcImg(p.media_url, { cls: 'postmedia', kind: 'feed' })}</div>`
       return `
   <div class="post" id="post-${p.id}">
     <div class="userinfos">
@@ -860,6 +917,7 @@ async function checkiflog() {
         <button class="likebtn ${liked ? 'liked' : ''}" data-post="${p.id}" onclick="toggleLike('${p.id}')"></button>
         <button class="likecount" data-post="${p.id}" onclick="showLikers('${p.id}')">${likes.length} ${likes.length === 1 ? 'like' : 'likes'}</button>
       </div>
+      <button class="share-post" onclick="sharePost('${esc(p.id)}')" aria-label="Share post">↗ Share</button>
       ${p.user_id === me ? '' : `<button class="msgbtn" onclick="openm('${p.user_id}')">Message</button>`}
     </div>
   </div>`
@@ -1312,6 +1370,10 @@ async function checkiflog() {
         <button class="back" onclick="closeinbox()"></button>
         <button class="profilepicturee" style="background-image: url('${p.profile_pic || ''}');" onclick="openUserChoice('${value}')"></button>
         <p class="hisnamee" onclick="openUserChoice('${value}')">${esc(p.full_name || '')}</p>
+        <div class="call-shortcuts" aria-label="Call controls">
+          <button type="button" onclick="startCall('${value}','audio')" aria-label="Voice call">☎</button>
+          <button type="button" onclick="startCall('${value}','video')" aria-label="Video call">▣</button>
+        </div>
       </div>
       <div class="messagesp2p" id="messagesp2p"></div>
       <div class="attachmenu" id="attachmenu">
@@ -1526,6 +1588,7 @@ async function checkiflog() {
     </div>
     <div class="allI">
       ${mine ? '' : `<button class="messag" onclick="openm('${u.id}')">Message</button>`}
+      ${mine ? '' : `<button class="call-profile" onclick="startCall('${u.id}','audio')">Call</button>`}
       ${mine ? '' : `<button class="followbig ${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'on' : ''}" data-follow="${u.id}" onclick="toggleFollow('${u.id}')">${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'Following ✓' : '+ Follow'}</button>`}
       <button class="photos" onclick="openGallery('${u.id}')">${mine ? 'photos' : 'Photos'}</button>
       ${mine ? `<button class="photos" onclick="kcPushToggle()">🔔 Notification</button>` : ''}
@@ -1544,6 +1607,7 @@ async function checkiflog() {
     window.openm = openm
 
     async function logout() {
+      if (callClient) { callClient.close(); callClient = null }
       await disablePush(supabase)
       const { data: logout, error: err } = await supabase.auth.signOut()
       waitAsec()
@@ -1639,20 +1703,34 @@ async function checkiflog() {
 
       // ---------- notifications: ask once in a while, open the right screen when tapped ----------
       initPush(supabase, (t) => showmessage(t))
-      openUrlHandler = (url) => {
+      openUrlHandler = async (url) => {
         try {
           const q = new URL(url, location.origin).searchParams
           if (q.get('chat')) openm(q.get('chat'))
           else if (q.get('user')) openuser(q.get('user'))
-        } catch { /* ignore */ }
+          else if (q.get('post')) {
+            const { data: posts, error: postError } = await supabase.from('posts').select('*, post_likes(user_id)').eq('id', q.get('post')).limit(1)
+            if (postError) { softError(postError, 'open post'); return }
+            if (!posts || !posts[0]) { showmessage('This post is no longer available.'); return }
+            const { data: profiles, error: profileError } = await supabase.from('profiles').select('*').eq('id', posts[0].user_id)
+            if (profileError) { softError(profileError, 'open post profile'); return }
+            if (profiles && profiles[0]) profileCache[profiles[0].id] = profiles[0]
+            window.kcRemember([posts[0]])
+            window.openPostViewer([posts[0]], 0)
+          }
+        } catch (error) {
+          console.error('[kirezi] notification link failed', error)
+          showmessage('Could not open this link.')
+        }
       }
       window.kcPushToggle = () => enablePush(supabase, (t) => showmessage(t))
-      if (location.search.includes('chat=') || location.search.includes('user=')) {
+      if (location.search.includes('chat=') || location.search.includes('user=') || location.search.includes('post=')) {
         setTimeout(() => { openUrlHandler(location.href); history.replaceState(history.state, '', location.pathname) }, 900)
       }
     }
 
   } else {
+    if (callClient) { callClient.close(); callClient = null }
     waitAsec('cancel')
     document.documentElement.classList.remove('kc-has-session')
     stopWatcher()

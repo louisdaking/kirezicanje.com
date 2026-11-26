@@ -22,8 +22,12 @@ async function api(supabase, method, body) {
   return j
 }
 
+// OUR notification worker only. (getRegistration('/push/') is NOT safe: when it does not exist yet, the browser answers with the
+// main sw.js worker, which also covers /push/ - and then notifications were registered on the ads worker, which ignores them.)
+const findReg = async () => (await navigator.serviceWorker.getRegistrations()).find(r => new URL(r.scope).pathname === '/push/') || null
+
 async function getReg() {
-  const existing = await navigator.serviceWorker.getRegistration('/push/')
+  const existing = await findReg()
   if (existing) { existing.update().catch(() => {}); return existing }       // always fetch the newest notification worker
   const reg = await navigator.serviceWorker.register('/push/sw.js', { scope: '/push/' })
   if (reg.active) return reg
@@ -46,6 +50,17 @@ async function subscribeAndSave(supabase, force) {
   if (sub && (force || !sameBytes(sub.options && sub.options.applicationServerKey, key))) { await sub.unsubscribe(); sub = null }   // key changed or registration dead: subscribe again
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
   await api(supabase, 'POST', { action: 'subscribe', subscription: sub.toJSON() })
+  // clean-up: an earlier version registered OUR key on the main (ads) worker by mistake: remove that one
+  try {
+    for (const r of await navigator.serviceWorker.getRegistrations()) {
+      if (r === reg) continue
+      const wrong = await r.pushManager.getSubscription()
+      if (wrong && sameBytes(wrong.options && wrong.options.applicationServerKey, key)) {
+        api(supabase, 'POST', { action: 'unsubscribe', endpoint: wrong.endpoint }).catch(() => {})
+        await wrong.unsubscribe()
+      }
+    }
+  } catch { /* ignore */ }
   return true
 }
 
@@ -79,7 +94,7 @@ export async function enablePush(supabase, say) {
 export async function disablePush(supabase) {
   try {
     if (!supported()) return
-    const reg = await navigator.serviceWorker.getRegistration('/push/')
+    const reg = await findReg()
     const sub = reg && await reg.pushManager.getSubscription()
     if (sub) { await api(supabase, 'POST', { action: 'unsubscribe', endpoint: sub.endpoint }).catch(() => {}); await sub.unsubscribe() }
   } catch { /* ignore */ }
@@ -118,7 +133,7 @@ function announceNewUser(supabase) {
 // the app is open: phone notifications that are still on the screen are not needed any more
 export async function clearShown() {
   try {
-    const reg = await navigator.serviceWorker.getRegistration('/push/')
+    const reg = await findReg()
     if (!reg) return
     ;(await reg.getNotifications()).forEach(n => n.close())
   } catch { /* ignore */ }

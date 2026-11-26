@@ -1,4 +1,96 @@
 /* =========================================================
+   RESPONSIVE POLISH
+   ========================================================= */
+.chatimg { cursor: pointer; touch-action: manipulation; }
+.hisinfos {
+    background: rgba(255, 255, 255, .96);
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 4px 18px rgba(27, 10, 23, .09);
+}
+.hisnamee { color: var(--ink); }
+.hisinfos .back { filter: brightness(.18); }
+.hisinfos .back:active { background-color: var(--blush); }
+.hisinfos .profilepicturee { box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--magenta); }
+.hisinfos .kcCallBtn { background: var(--blush); }
+.hisinfos .kcCallBtn svg { filter: brightness(.18); }
+.profile-card .fcounts {
+    justify-content: flex-start;
+    margin: 20px 0 2px;
+}
+.profile-card .fcounts button {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 0;
+    color: var(--mist);
+    font-size: 13px;
+}
+.profile-card .fcounts b { font-size: 18px; }
+.profile-cover .profil {
+    transition: transform .2s ease, box-shadow .2s ease;
+}
+.profile-cover .profil:active { transform: scale(.97); }
+
+@media (min-width: 760px) {
+    #allofthem,
+    .messenger {
+        left: 50%;
+        right: auto;
+        width: min(760px, 100%);
+        transform: translateX(-50%);
+    }
+    .navigation {
+        left: 50%;
+        right: auto;
+        bottom: 18px;
+        width: min(700px, calc(100% - 48px));
+        transform: translateX(-50%);
+    }
+    .bottomnav { border-radius: 22px; }
+    .inbox {
+        inset: auto;
+        top: 50%;
+        left: 50%;
+        width: min(940px, calc(100vw - 48px));
+        height: min(860px, calc(100dvh - 48px));
+        transform: translate(-50%, -50%);
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, .72);
+        border-radius: 26px;
+        box-shadow: 0 28px 90px rgba(27, 10, 23, .28), 0 0 0 100vmax rgba(27, 10, 23, .38);
+    }
+    .hisinfos { padding-left: 18px; }
+    .profile-cover { border-radius: 0 0 34px 34px; }
+    .profile-cover .profil {
+        left: 32px;
+        bottom: -56px;
+        width: 152px;
+        height: 152px;
+    }
+    .profile-card {
+        margin-right: 28px;
+        margin-left: 28px;
+        padding: 72px 32px 30px;
+        border-radius: 0 0 30px 30px;
+    }
+    .allI {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    }
+}
+
+@media (max-width: 380px) {
+    .profile-card { margin-right: 10px; margin-left: 10px; padding-right: 16px; padding-left: 16px; }
+    .profile-cover .profil { left: 18px; }
+    .allI { gap: 8px; }
+    .allI button { padding: 0 8px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .profile-cover .profil,
+    .allI button { transition: none; }
+}
+
+/* =========================================================
    SOCIAL.CSS  (new file, loaded after style.css)
    Search, gallery, full screen viewer, user chooser, status likes.
    Uses the same colors as style.css (--magenta, --paper, --line ...).

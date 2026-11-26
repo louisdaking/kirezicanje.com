@@ -272,6 +272,95 @@ function softError(err, where) {
   showmessage(!navigator.onLine || isNetworkError(err) ? 'Nta internet. Bizoherezwa internet nigaruka.' : 'Habaye ikibazo. Ongera ugerageze.')
 }
 window.softError = softError
+
+async function downloadMedia(url, filename = 'kirezi-photo') {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) throw new Error('Media download failed (' + response.status + ')')
+    const blob = await response.blob()
+    const extension = ({
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif', 'image/avif': 'avif',
+      'video/mp4': 'mp4', 'video/webm': 'webm'
+    })[blob.type.toLowerCase()] || 'jpg'
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename + '.' + extension
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(link.href), 4000)
+    showmessage('Download started ✅')
+  } catch (error) {
+    softError(error, 'media download')
+  }
+}
+window.kcDownloadMedia = downloadMedia
+
+let heldChatImage = null
+let chatImageHoldTimer = null
+let chatImagePressPoint = null
+function showChatImageActions(url) {
+  if (typeof window.openSheet !== 'function') {
+    window.open(url, '_blank', 'noopener,noreferrer')
+    return
+  }
+  window.openSheet(`
+    <h4>Photo options</h4>
+    <button class="uc-row" data-chat-photo-action="view" data-url="${esc(url)}">
+      <span class="uc-ic">⤢</span><span><b>View full size</b></span>
+    </button>
+    <button class="uc-row" data-chat-photo-action="download" data-url="${esc(url)}">
+      <span class="uc-ic">↓</span><span><b>Download photo</b></span>
+    </button>`)
+}
+document.addEventListener('pointerdown', (event) => {
+  const image = event.target.closest && event.target.closest('.chatimg')
+  if (!image || image.tagName !== 'IMG') return
+  clearTimeout(chatImageHoldTimer)
+  chatImagePressPoint = { x: event.clientX, y: event.clientY }
+  chatImageHoldTimer = setTimeout(() => {
+    heldChatImage = image
+    showChatImageActions(image.currentSrc || image.src)
+  }, 550)
+})
+document.addEventListener('pointermove', (event) => {
+  if (!chatImagePressPoint) return
+  if (Math.abs(event.clientX - chatImagePressPoint.x) > 12 || Math.abs(event.clientY - chatImagePressPoint.y) > 12) {
+    clearTimeout(chatImageHoldTimer)
+    chatImagePressPoint = null
+  }
+})
+document.addEventListener('pointerup', () => {
+  clearTimeout(chatImageHoldTimer)
+  chatImagePressPoint = null
+  setTimeout(() => { heldChatImage = null }, 300)
+})
+document.addEventListener('pointercancel', () => {
+  clearTimeout(chatImageHoldTimer)
+  chatImagePressPoint = null
+  heldChatImage = null
+})
+document.addEventListener('contextmenu', (event) => {
+  if (event.target.closest && event.target.closest('.chatimg')) event.preventDefault()
+})
+document.addEventListener('click', (event) => {
+  const action = event.target.closest && event.target.closest('[data-chat-photo-action]')
+  if (action) {
+    const url = action.dataset.url
+    window.closeSheet()
+    if (action.dataset.chatPhotoAction === 'view') window.open(url, '_blank', 'noopener,noreferrer')
+    else downloadMedia(url)
+    return
+  }
+  const image = event.target.closest && event.target.closest('.chatimg')
+  if (!image || image.tagName !== 'IMG') return
+  event.preventDefault()
+  if (heldChatImage === image) {
+    heldChatImage = null
+    return
+  }
+  window.open(image.currentSrc || image.src, '_blank', 'noopener,noreferrer')
+})
 function authError(err) {
   const m = String((err && err.message) || '')
   console.error('[kirezi]', m)
@@ -342,7 +431,7 @@ function messageBodyHTML(m, cls) {
   if (m.file_url) {
     const type = m.file_type || ''
     if (type.startsWith('image/')) {
-      return window.kcImg(m.file_url, { cls: 'chatimg', kind: 'feed', attrs: `onclick="window.open('${esc(m.file_url)}','_blank')"` })
+      return window.kcImg(m.file_url, { cls: 'chatimg', kind: 'feed' })
     }
     if (type.startsWith('video/')) {
       return `<video class="chatimg" src="${esc(m.file_url)}" controls preload="metadata" playsinline></video>`
@@ -1521,23 +1610,36 @@ async function checkiflog() {
       showHTML('userJournal')
       showHTML('navigation')
 
+      const age = Number(u.age)
+      const ageLabel = Number.isFinite(age) && age > 0 ? `${age} years old` : ''
+      const placeLabel = u.address ? `📍 ${esc(u.address)}` : ''
       document.getElementById('userJournal').innerHTML = `
-    <button class="profil" style="background-image: url('${u.profile_pic}');"></button>
-    <p class="pname">${esc(u.full_name)}</p>
-    <p class="pplace">📍 ${esc(u.address)}</p>
-    <div class="fcounts" id="followCounts">
-      <button onclick="showFollowList('${u.id}','followers')"><b id="fcFollowers" data-uid="${u.id}">–</b>Followers</button>
-      <button onclick="showFollowList('${u.id}','following')"><b id="fcFollowing" data-uid="${u.id}">–</b>Following</button>
-    </div>
-    <div class="allI">
-      ${mine ? '' : `<button class="messag" onclick="openm('${u.id}')">Message</button>`}
-      ${mine ? '' : `<button class="followbig ${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'on' : ''}" data-follow="${u.id}" onclick="toggleFollow('${u.id}')">${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'Following ✓' : '+ Follow'}</button>`}
-      <button class="photos" onclick="openGallery('${u.id}')">${mine ? 'photos' : 'Photos'}</button>
-      ${mine ? `<button class="photos" onclick="kcPushToggle()">🔔 Notification</button>` : ''}
-      ${mine ? `<button class="photos" onclick="location.href='monetize.html'">monetization 🤑💰</button>` : ''}
-      ${mine ? `<button class="photos" onclick="location.href='app.html#reviews'">⭐ Rate app</button>` : ''}
-      ${mine ? `<button class="logout" onclick="logout()">deconnecte</button>` : ''}
-    </div>`
+    <main class="profile-page${mine ? ' is-mine' : ''}">
+      <div class="profile-cover" style="--profile-cover:url('${esc(u.profile_pic || '')}')">
+        <span class="profile-cover-shade"></span>
+        <button class="profil" type="button" aria-label="View ${esc(u.full_name || 'user')}'s photos" onclick="openGallery('${esc(u.id)}')"></button>
+      </div>
+      <section class="profile-card">
+        <div class="profile-intro">
+          <p class="profile-eyebrow">${mine ? 'YOUR PROFILE' : 'MEMBER PROFILE'}</p>
+          <h1 class="pname">${esc(u.full_name || 'Member')}</h1>
+          <p class="pplace">${[placeLabel, ageLabel].filter(Boolean).join(' · ') || 'Getting to know the community'}</p>
+        </div>
+        <div class="fcounts" id="followCounts">
+          <button type="button" onclick="showFollowList('${esc(u.id)}','followers')"><b id="fcFollowers" data-uid="${esc(u.id)}">–</b><span>Followers</span></button>
+          <button type="button" onclick="showFollowList('${esc(u.id)}','following')"><b id="fcFollowing" data-uid="${esc(u.id)}">–</b><span>Following</span></button>
+        </div>
+        <div class="allI">
+          ${mine ? '' : `<button class="messag" onclick="openm('${esc(u.id)}')">Message</button>`}
+          ${mine ? '' : `<button class="followbig ${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'on' : ''}" data-follow="${esc(u.id)}" onclick="toggleFollow('${esc(u.id)}')">${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'Following ✓' : '+ Follow'}</button>`}
+          <button class="photos" onclick="openGallery('${esc(u.id)}')">Photos</button>
+          ${mine ? `<button class="photos" onclick="kcPushToggle()">🔔 Notifications</button>` : ''}
+          ${mine ? `<button class="photos" onclick="location.href='monetize.html'">Creator dashboard</button>` : ''}
+          ${mine ? `<button class="photos" onclick="location.href='app.html#reviews'">⭐ Rate app</button>` : ''}
+          ${mine ? `<button class="logout" onclick="logout()">Log out</button>` : ''}
+        </div>
+      </section>
+    </main>`
       window.followCounts && window.followCounts(u.id)
     }
     window.openuser = openuser

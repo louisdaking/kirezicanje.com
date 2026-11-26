@@ -282,7 +282,7 @@ export function initSocial(ctx) {
   // ---------------------------------------------------
   // 3. FULL SCREEN POST VIEWER
   // ---------------------------------------------------
-  const pv = { list: [], i: 0, onChange: null, down: null }
+  const pv = { list: [], i: 0, onChange: null, down: null, holdTimer: null }
 
   function openPostViewer(list, index, opts) {
     if (!list || !list.length) return
@@ -465,24 +465,59 @@ export function initSocial(ctx) {
     }
   }
 
-  // swipe left/right = next/previous, swipe down = close, tap on a photo = hide/show the bars
+  function pvHoldMenu() {
+    const p = pv.list[pv.i]
+    if (!p || isVideo(p)) return
+    if (currentOwnPost()) { pvMenu(); return }
+    openSheet(`
+      <h4>Photo options</h4>
+      <button class="uc-row" onclick="closeSheet();pvOpenOriginal()">
+        <span class="uc-ic">⤢</span><span><b>View full size</b></span>
+      </button>
+      <button class="uc-row" onclick="pvSave()">
+        <span class="uc-ic">↓</span><span><b>Download photo</b></span>
+      </button>`)
+  }
+  function pvOpenOriginal() {
+    const p = pv.list[pv.i]
+    if (p && p.media_url) window.open(p.media_url, '_blank', 'noopener,noreferrer')
+  }
+
+  // Swipe left/right = next/previous, swipe down = close, tap = hide controls, hold = photo actions.
   ;(function attachViewerGestures() {
     const box = $('pviewer')
     if (!box) return
     box.addEventListener('pointerdown', (e) => {
       if (!e.target.closest('.pv-stage') || e.target.tagName === 'VIDEO') { pv.down = null; return }
       pv.down = { x: e.clientX, y: e.clientY, t: e.target }
+      if (e.target.tagName === 'IMG') {
+        clearTimeout(pv.holdTimer)
+        pv.holdTimer = setTimeout(() => {
+          if (!pv.down) return
+          pv.down.held = true
+          pvHoldMenu()
+        }, 550)
+      }
+    })
+    box.addEventListener('pointermove', (e) => {
+      if (!pv.down) return
+      if (Math.abs(e.clientX - pv.down.x) > 12 || Math.abs(e.clientY - pv.down.y) > 12) clearTimeout(pv.holdTimer)
     })
     box.addEventListener('pointerup', (e) => {
       const d = pv.down
       pv.down = null
+      clearTimeout(pv.holdTimer)
       if (!d) return
+      if (d.held) return
       const dx = e.clientX - d.x, dy = e.clientY - d.y
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) pvNav(dx < 0 ? 1 : -1)
       else if (dy > 110 && Math.abs(dy) > Math.abs(dx)) closePostViewer()
       else if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && d.t.tagName === 'IMG') box.classList.toggle('pv-hide')
     })
-    box.addEventListener('pointercancel', () => { pv.down = null })
+    box.addEventListener('pointercancel', () => { pv.down = null; clearTimeout(pv.holdTimer) })
+    box.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('.pv-stage img')) e.preventDefault()
+    })
   })()
   document.addEventListener('keydown', (e) => {
     const box = $('pviewer')
@@ -556,19 +591,10 @@ export function initSocial(ctx) {
     if (pv.onChange) pv.onChange(p, 'update')
   }
   async function pvSave() {
-    const p = currentOwnPost()
+    const p = pv.list[pv.i]
     closeSheet()
-    if (!p) return
-    try {
-      const blob = await (await fetch(p.media_url)).blob()
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = 'kirezi-' + Date.now() + (isVideo(p) ? '.mp4' : '.jpg')
-      document.body.appendChild(a); a.click(); a.remove()
-      setTimeout(() => URL.revokeObjectURL(a.href), 4000)
-    } catch (e) {
-      window.open(p.media_url, '_blank')
-    }
+    if (!p || !p.media_url) return
+    await window.kcDownloadMedia(p.media_url, 'kirezi-' + Date.now())
   }
   function pvConfirmDelete() {
     const p = currentOwnPost()
@@ -993,7 +1019,7 @@ export function initSocial(ctx) {
     kcRemember: remember, syncLikeUI, toggleLike, showLikers, closeLikers,
     openSheet, closeSheet,
     openUserChoice, ucGo,
-    openPostViewer, closePostViewer, openReels, closeReels, reelsMute, reelsMore, pvNav, pvMenu, pvEdit, pvSaveCaption, pvMove, pvSave, pvConfirmDelete, pvDelete,
+    openPostViewer, closePostViewer, openReels, closeReels, reelsMute, reelsMore, pvNav, pvMenu, pvEdit, pvSaveCaption, pvMove, pvSave, pvOpenOriginal, pvConfirmDelete, pvDelete,
     openGallery, closeGallery, galleryFilter, galleryOpen,
     openSearch, searchOpen, searchMsg, searchRecent, searchClearRecent: clearRecent, searchPostOpen,
     closeOverlays,

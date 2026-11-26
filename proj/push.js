@@ -54,7 +54,14 @@ export async function enablePush(supabase, say) {
   if (Notification.permission === 'denied') { say && say('Notifications are blocked. Open the browser settings for this site and allow them.'); return false }
   const p = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission()
   if (p !== 'granted') return false
-  try { await subscribeAndSave(supabase); say && say('Notifications are ON 🔔'); return true }
+  try {
+    await subscribeAndSave(supabase)
+    let t = 'none yet'; try { t = localStorage.getItem('kc_last_notify') || t } catch { /* ignore */ }
+    let test = ''
+    try { const r = await api(supabase, 'POST', { action: 'test' }); test = 'test sent to ' + r.phones + ' phone(s), push service says: ' + r.status.join(',') } catch (e) { test = 'test failed: ' + (e.message || e) }
+    say && say('Notifications are ON 🔔\n' + test + '\nlast action: ' + t)
+    return true
+  }
   catch (e) { say && say('Notifications failed: ' + (e.message || e)); return false }
 }
 
@@ -76,7 +83,9 @@ export function notifyServer(supabase, event) {
       const { data } = await supabase.auth.getSession()
       const token = data && data.session && data.session.access_token
       if (!token || !navigator.onLine) return
-      await fetch('/api/notify', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(event) })
+      const res = await fetch('/api/notify', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token }, body: JSON.stringify(event) })
+      const j = await res.json().catch(() => ({}))
+      try { localStorage.setItem('kc_last_notify', event.type + ' -> http ' + res.status + ', sent ' + (j.sent == null ? '?' : j.sent) + (j.skipped ? ' (' + j.skipped + ')' : '')) } catch { /* ignore */ }
     } catch { /* ignore */ }
   })()
 }

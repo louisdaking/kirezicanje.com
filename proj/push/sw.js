@@ -10,7 +10,7 @@ self.addEventListener('push', (event) => {
   event.waitUntil((async () => {
     // the app is open and visible: the app shows its own little popup, no phone notification
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    if (all.some(c => c.visibilityState === 'visible')) return
+    if (!d.force && all.some(c => c.visibilityState === 'visible')) return
     await self.registration.showNotification(d.title || 'KIREZI CANJE', {
       body: d.body || '',
       icon: d.icon || '/icon-192.png',

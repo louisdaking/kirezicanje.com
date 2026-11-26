@@ -28,6 +28,13 @@ module.exports = async (req, res) => {
       subs.forgetIndex()
       return send(res, 200, { ok: true })
     }
+    if (b.action === 'test') {                       // "send me a test notification" (shows what each phone answered)
+      if (limited('pt:' + user.id, 6, 60_000)) return fail(res, 429, 'Too many requests')
+      const list = await subs.getSubs(user.id)
+      const results = await Promise.all(list.map(s => wp.send({ endpoint: s.e, p256dh: s.p, auth: s.a },
+        { kc: 1, force: 1, title: '🔔 KIREZI CANJE', body: 'Notifications work! ✅', tag: 'kc-test', url: '/' }, { ttl: 60, urgency: 'high' })))
+      return send(res, 200, { ok: true, phones: list.length, status: results.map(r => r.status) })
+    }
     if (b.action === 'unsubscribe') {
       if (typeof b.endpoint !== 'string') return fail(res, 400, 'Bad request')
       await subs.removeSubs(user.id, [b.endpoint])

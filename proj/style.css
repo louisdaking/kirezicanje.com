@@ -142,6 +142,26 @@ html:not(.kc-auth-ready) .cre {
     display: none !important;
 }
 
+body:not(.kc-auth-ready) {
+    background: var(--paper);
+}
+body:not(.kc-auth-ready)::before {
+    content: "";
+    position: fixed;
+    z-index: 1000000001;
+    top: 50%;
+    left: 50%;
+    width: 38px;
+    height: 38px;
+    margin: -19px 0 0 -19px;
+    border: 3px solid var(--line);
+    border-top-color: var(--magenta);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+    pointer-events: none;
+}
+body:not(.kc-auth-ready).kc-page-error::before { display: none; }
+
 .brand_couple {
     display: flex;
     align-items: center;

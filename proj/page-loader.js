@@ -47,5 +47,6 @@ async function start() {
 
 start().catch(error => {
   console.error('[kirezi] app page failed to start', error)
+  document.body.classList.add('kc-page-error')
   document.getElementById('kcShell').textContent = 'KIREZI CANJE could not load. Check your connection and refresh.'
 })

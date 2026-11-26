@@ -8,6 +8,7 @@ import { initPush, enablePush, disablePush, notifyServer } from './push.js'   //
 import { initBackNav } from './backnav.js'   // phone Back button: closes things, goes back, asks before leaving
 import { initCalls, callButtonsHTML } from './call.js'   // voice & video calls
 import { trackProfile } from './track.js'   // creator monetization: counts genuine profile visits (server decides what counts)
+import { inboxPolicyError } from './message-policy.mjs'
 const SUPABASE_URL = "https://sdzdfzhmomfocsvlddli.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkemRmemhtb21mb2NzdmxkZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNDE4OTQsImV4cCI6MjA4NDgxNzg5NH0.vk0KP5FZwesUqm86MgHep3VZCClIgIGEwyU_2Y0L8X4";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { fetch: offlineFetch } })
@@ -52,6 +53,13 @@ async function flushOutbox() {
     for (;;) {
       const it = outbox.all().find(i => i.sender_id === watcherUser)
       if (!it) break
+      const policyError = inboxPolicyError(it.content)
+      if (policyError) {
+        outbox.remove(it.client_id)
+        showmessage(policyError)
+        sentAny = true
+        continue
+      }
       const { tries, ...row } = it
       // a message that waited a long time keeps the time it was written; a fresh one gets the server time
       if (Date.now() - new Date(it.created_at).getTime() < 30000) delete row.created_at
@@ -1474,6 +1482,12 @@ async function checkiflog() {
       const box = document.getElementById('wordsTo')
       const text = box.value.trim()
       if (!text) return
+      const policyError = inboxPolicyError(text)
+      if (policyError) {
+        showmessage(policyError)
+        box.focus()
+        return
+      }
       box.value = ''
       box.parentElement.classList.remove('typing')
       const me = data.session.user.id

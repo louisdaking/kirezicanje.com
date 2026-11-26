@@ -131,6 +131,16 @@ const subs = require('../api/_lib/subs')
 const N = (token, body) => call(notify, { token, body })
 
 ;(async () => {
+  const messagePolicy = await import('../message-policy.mjs')
+  console.log('message policy')
+  await test('inbox rejects numbers and links', () => {
+    assert.strictEqual(messagePolicy.inboxPolicyError('hello'), '')
+    assert.strictEqual(messagePolicy.inboxPolicyError('call me on 123'), 'Numbers are not allowed in messages.')
+    assert.strictEqual(messagePolicy.inboxPolicyError('visit example.com'), 'Links are not allowed in messages.')
+    assert.strictEqual(messagePolicy.inboxPolicyError('https://example.com'), 'Links are not allowed in messages.')
+    assert.strictEqual(messagePolicy.inboxPolicyError('www.example.com'), 'Links are not allowed in messages.')
+  })
+
   console.log('crypto')
   await test('RFC 8291 test vector: secret, key material and nonce are exactly the RFC values', () => {
     const e = crypto.createECDH('prime256v1'); e.setPrivateKey(u('yfWPiYE-n46HLnH0KqZOF1fJJU3MYrct3AELtAQ-oRw'))

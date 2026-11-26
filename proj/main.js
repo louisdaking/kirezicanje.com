@@ -209,6 +209,7 @@ function fmtSize(n) {
 }
 const initialPage = new URLSearchParams(location.search).get('page')
 let pageRoutesReady = false
+let profileCoverTimer = null
 const pageByNav = { peekyourfav: 'home', messages: 'messages', status: 'status', profile: 'profile', search: 'search' }
 function setPageUrl(page) {
   const url = new URL(location.href)
@@ -943,9 +944,10 @@ async function checkiflog() {
 
     // the posts that are on the feed screen right now (the full-screen viewer swipes through them)
     let feedPosts = []
+    let profilePosts = []
 
     // draws ONE post card of the feed
-    function postHTML(p) {
+    function postHTML(p, openPost = openFeedPost) {
       const me = data.session.user.id
       const u = profileCache[p.user_id] || {}
       const likes = p.post_likes || []
@@ -956,8 +958,8 @@ async function checkiflog() {
       const captionText = p.caption || (isPicPost ? 'yashizeko profile nshasha' : '')
       // tap the photo / video = open it full screen
       const media = isVideo
-        ? `<div class="mediawrap" onclick="openFeedPost('${p.id}')"><video class="postmedia" src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video><span class="playbadge">▶</span></div>`
-        : `<div class="mediawrap" onclick="openFeedPost('${p.id}')">${window.kcImg(p.media_url, { cls: 'postmedia', kind: 'feed' })}</div>`
+        ? `<div class="mediawrap" onclick="(${openPost.name})('${p.id}')"><video class="postmedia" src="${esc(p.media_url)}#t=0.1" muted playsinline preload="metadata"></video><span class="playbadge">▶</span></div>`
+        : `<div class="mediawrap" onclick="(${openPost.name})('${p.id}')">${window.kcImg(p.media_url, { cls: 'postmedia', kind: 'feed' })}</div>`
       return `
   <div class="post" id="post-${p.id}">
     <div class="userinfos">
@@ -999,6 +1001,24 @@ async function checkiflog() {
       })
     }
     window.openFeedPost = openFeedPost
+
+    function openProfilePost(id) {
+      const index = profilePosts.findIndex(p => String(p.id) === String(id))
+      if (index < 0) return
+      window.openPostViewer(profilePosts, index, {
+        onChange: (post, action) => {
+          const el = document.getElementById('post-' + post.id)
+          if (action === 'delete') {
+            const i = profilePosts.indexOf(post)
+            if (i >= 0) profilePosts.splice(i, 1)
+            if (el) el.remove()
+          } else if (el) {
+            el.outerHTML = postHTML(post, openProfilePost)
+          }
+        }
+      })
+    }
+    window.openProfilePost = openProfilePost
 
     // ----- new post sheet -----
     function openPostModal(kind) {
@@ -1622,6 +1642,8 @@ async function checkiflog() {
         return
       }
 
+      clearInterval(profileCoverTimer)
+      profileCoverTimer = null
       const { data: pros, error: nouser } = await supabase.from('profiles').select('*').eq('id', value)
       if (nouser || !pros || !pros[0]) {
         softError(nouser || 'user not found', 'openuser')
@@ -1631,6 +1653,8 @@ async function checkiflog() {
       const u = pros[0]
       profileCache[u.id] = u
       const mine = u.id === data.session.user.id
+      profilePosts = []
+      document.getElementById('userJournal').dataset.profile = u.id
       setNav(mine ? 'profile' : '')
       if (pageRoutesReady) setPageUrl('profile')
       if (!mine) trackProfile(supabase, u.id, data.session.user.id)   // monetization: one genuine visit per viewer per day (server-side)
@@ -1646,9 +1670,10 @@ async function checkiflog() {
       const placeLabel = u.address ? `📍 ${esc(u.address)}` : ''
       document.getElementById('userJournal').innerHTML = `
     <main class="profile-page${mine ? ' is-mine' : ''}">
-      <div class="profile-cover" style="--profile-cover:url('${esc(u.profile_pic || '')}')">
+      <div class="profile-cover">
+        <div class="profile-cover-slides" aria-hidden="true"></div>
         <span class="profile-cover-shade"></span>
-        <button class="profil" type="button" aria-label="View ${esc(u.full_name || 'user')}'s photos" onclick="openGallery('${esc(u.id)}')"></button>
+        <button class="profil" type="button" style="background-image:url('${esc(u.profile_pic || '')}')" aria-label="View ${esc(u.full_name || 'user')}'s photos" onclick="openGallery('${esc(u.id)}')"></button>
       </div>
       <section class="profile-card">
         <div class="profile-intro">
@@ -1670,7 +1695,68 @@ async function checkiflog() {
           ${mine ? `<button class="logout" onclick="logout()">Log out</button>` : ''}
         </div>
       </section>
+      <section class="profile-posts" aria-label="Posts">
+        <h2 class="profile-posts-title">Posts</h2>
+        <div class="profile-post-list"><div class="empty"><p>Loading posts…</p></div></div>
+      </section>
     </main>`
+      const coverSlides = document.querySelector('#userJournal .profile-cover-slides')
+      if (u.profile_pic) {
+        const avatarSlide = document.createElement('img')
+        avatarSlide.className = 'profile-cover-slide active'
+        avatarSlide.src = u.profile_pic
+        avatarSlide.alt = ''
+        coverSlides.appendChild(avatarSlide)
+      }
+      const { data: posts, error: postsError } = await supabase.from('posts')
+        .select('*, post_likes(user_id)')
+        .eq('user_id', u.id)
+        .order('created_at', { ascending: false })
+      if (document.getElementById('userJournal').dataset.profile !== u.id) return
+      if (postsError) {
+        softError(postsError, 'profile posts')
+        document.querySelector('#userJournal .profile-post-list').innerHTML = '<div class="empty"><p>Could not load posts</p><span>Check your connection and try again.</span></div>'
+      } else {
+        profilePosts = posts || []
+        window.kcRemember(profilePosts)
+        const postList = document.querySelector('#userJournal .profile-post-list')
+        postList.innerHTML = profilePosts.length
+          ? profilePosts.map(p => postHTML(p, openProfilePost)).join('')
+          : '<div class="empty"><p>No posts yet</p><span>Posts shared by this user will appear here.</span></div>'
+
+        const imageUrls = [...new Set([
+          u.profile_pic,
+          ...profilePosts.filter(p => (p.media_type || '').startsWith('image/')).map(p => p.media_url)
+        ].filter(Boolean))]
+        const slides = document.querySelector('#userJournal .profile-cover-slides')
+        slides.replaceChildren(...imageUrls.map((url, i) => {
+          const img = document.createElement('img')
+          img.className = 'profile-cover-slide' + (i === 0 ? ' active' : '')
+          img.src = url
+          img.alt = ''
+          img.loading = i === 0 ? 'eager' : 'lazy'
+          return img
+        }))
+        if (imageUrls.length > 1) {
+          let current = 0
+          profileCoverTimer = setInterval(() => {
+            if (document.getElementById('userJournal').dataset.profile !== u.id) {
+              clearInterval(profileCoverTimer)
+              profileCoverTimer = null
+              return
+            }
+            if (getComputedStyle(document.getElementById('userJournal')).display === 'none') {
+              clearInterval(profileCoverTimer)
+              profileCoverTimer = null
+              return
+            }
+            const images = slides.querySelectorAll('.profile-cover-slide')
+            images[current].classList.remove('active')
+            current = (current + 1) % images.length
+            images[current].classList.add('active')
+          }, 5000)
+        }
+      }
       window.followCounts && window.followCounts(u.id)
     }
     window.openuser = openuser

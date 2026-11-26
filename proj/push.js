@@ -24,7 +24,7 @@ async function api(supabase, method, body) {
 
 async function getReg() {
   const existing = await navigator.serviceWorker.getRegistration('/push/')
-  if (existing) return existing
+  if (existing) { existing.update().catch(() => {}); return existing }       // always fetch the newest notification worker
   const reg = await navigator.serviceWorker.register('/push/sw.js', { scope: '/push/' })
   if (reg.active) return reg
   await new Promise((res) => {

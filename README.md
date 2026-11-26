@@ -9,3 +9,7 @@
 ## Inbox restrictions
 
 Run [`proj/block-external-message.sql`](./proj/block-external-message.sql) once in the Supabase SQL Editor. It blocks numeric and link-based content in inbox messages, including direct Supabase API insert/update attempts.
+
+## Main app pages
+
+The main views can be opened directly and bookmarked with the `page` query parameter: `proj/index.html?page=home`, `?page=messages`, `?page=status`, `?page=profile`, or `?page=search`. The same shared app shell keeps login and offline data available across these views.

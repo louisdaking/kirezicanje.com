@@ -207,12 +207,21 @@ function fmtSize(n) {
   if (!n) return ''
   return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB'
 }
+const initialPage = new URLSearchParams(location.search).get('page')
+let pageRoutesReady = false
+const pageByNav = { peekyourfav: 'home', messages: 'messages', status: 'status', profile: 'profile', search: 'search' }
+function setPageUrl(page) {
+  const url = new URL(location.href)
+  url.searchParams.set('page', page)
+  history.replaceState(history.state, '', url)
+}
 function setNav(name) {
   document.querySelectorAll('.divi button').forEach(b => b.classList.remove('active'))
   if (name) {
     const b = document.querySelector('.divi .' + name)
     if (b) b.classList.add('active')
   }
+  if (pageRoutesReady && pageByNav[name]) setPageUrl(pageByNav[name])
 }
 function search() { showmessage('Search is coming soon') }
 window.search = search
@@ -900,19 +909,25 @@ window.openStatusViewer = openStatusViewer
 window.closeStatusViewer = closeStatusViewer
 
 async function checkiflog() {
-  let { data, error } = await supabase.auth.getSession();
-  // no internet and the login cannot be refreshed: keep the saved login so the app still opens
-  if ((error || !data.session) && (!navigator.onLine || (error && isNetworkError(error)))) {
-    const saved = savedSession()
-    if (saved) { data = { session: saved }; error = null }
+  let data = null, error = null
+  try {
+    ({ data, error } = await supabase.auth.getSession())
+  } catch (e) {
+    error = e
   }
+  // no internet and the login cannot be refreshed: keep the saved login so the app still opens
+  if ((error || !data?.session) && (!navigator.onLine || (error && isNetworkError(error)))) {
+    const saved = savedSession()
+    if (saved?.user?.id) { data = { session: saved }; error = null }
+  }
+  if (!data) data = { session: null }
   if (error) {
     waitAsec('cancel')
     softError(error);
   } else if (data.session) {
     waitAsec('cancel')
     document.documentElement.classList.add('kc-has-session')
-    showmessage("MURAHAWE IKAZE " + JSON.stringify(data.session.user.user_metadata.full_name));
+    showmessage("MURAHAWE IKAZE " + (data.session.user.user_metadata?.full_name || ''));
 
 
     // =====================================================
@@ -1424,9 +1439,9 @@ async function checkiflog() {
       <input type="file" id="docInput" hidden onchange="sendFile('${value}', this)">
       <div class="divFor" id="divFor">
         <button class="otherToSent" onclick="toggleAttach()"></button>
-        <input type="text" class="wordsTo" id="wordsTo" placeholder="Message" autocomplete="off"
-          oninput="this.parentElement.classList.toggle('typing', this.value.trim().length > 0)"
-          onkeydown="if(event.key==='Enter')sent('${value}')">
+        <textarea class="wordsTo" id="wordsTo" rows="1" placeholder="Message" autocomplete="off" aria-label="Message"
+          oninput="this.parentElement.classList.toggle('typing', this.value.trim().length > 0); this.style.height='44px'; this.style.height=Math.min(this.scrollHeight,120)+'px'"
+          onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();sent('${value}')}"></textarea>
         <div class="recbar">
           <span class="recdot"></span>
           <span id="recTime">0:00</span>
@@ -1434,7 +1449,7 @@ async function checkiflog() {
           <button class="reccancel" onclick="cancelRecord()">✕</button>
         </div>
         <button class="mic" id="micBtn" onclick="toggleRecord('${value}')" aria-label="Voice message"></button>
-        <button class="sent" onclick="sent('${value}')"></button>
+        <button class="sent" onclick="sent('${value}')" aria-label="Send message"></button>
       </div>`
         if (recorder && recorder.state === 'recording') {
           document.getElementById('micBtn').classList.add('recording')
@@ -1489,6 +1504,7 @@ async function checkiflog() {
         return
       }
       box.value = ''
+      box.style.height = '44px'
       box.parentElement.classList.remove('typing')
       const me = data.session.user.id
       // 1) saved on the phone (it stays even if the app is closed)  2) shown at once with a clock 🕓  3) sent in the background
@@ -1616,6 +1632,7 @@ async function checkiflog() {
       profileCache[u.id] = u
       const mine = u.id === data.session.user.id
       setNav(mine ? 'profile' : '')
+      if (pageRoutesReady) setPageUrl('profile')
       if (!mine) trackProfile(supabase, u.id, data.session.user.id)   // monetization: one genuine visit per viewer per day (server-side)
 
       document.getElementById('statusPage').style.transform = 'scale(0)'
@@ -1779,6 +1796,13 @@ async function checkiflog() {
         setTimeout(() => { openUrlHandler(location.href); history.replaceState(history.state, '', location.pathname) }, 900)
       }
     }
+
+    pageRoutesReady = true
+    if (initialPage === 'messages') onpenmessages(true)
+    else if (initialPage === 'status') openstatus(true)
+    else if (initialPage === 'profile') openuser()
+    else if (initialPage === 'search') window.openSearch()
+    else setPageUrl('home')
 
   } else {
     waitAsec('cancel')

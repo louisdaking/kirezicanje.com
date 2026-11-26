@@ -190,6 +190,14 @@ const N = (token, body) => call(notify, { token, body })
     assert.strictEqual((await call(pushApi, { token: 'tokME', body: { action: 'unsubscribe', endpoint: ep } })).code, 200)
     assert.strictEqual(world.users[ME].app_metadata.kc_push.length, 0)
   })
+  await test('"test" action: reports every phone and forgets the dead ones', async () => {
+    reset()
+    const dead = addPhone(ME), alive = addPhone(ME); world.deadEndpoints.add(dead)
+    const r = await call(pushApi, { token: 'tokME', body: { action: 'test' } })
+    assert.strictEqual(r.code, 200); assert.strictEqual(r.body.phones, 2); assert.deepStrictEqual(r.body.gone, [dead])
+    assert.deepStrictEqual(world.users[ME].app_metadata.kc_push.map(s => s.e), [alive])
+    assert.strictEqual(world.pushLog.at(-1).msg.force, 1)
+  })
   await test('at most 5 phones per user (oldest dropped)', async () => {
     reset()
     for (let i = 0; i < 7; i++) { const ph = makePhone(); await subs.saveSub(ME, { endpoint: 'https://fcm.googleapis.com/fcm/send/p' + i, p256dh: ph.p256dh, auth: ph.auth }) }

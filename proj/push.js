@@ -37,13 +37,13 @@ async function getReg() {
 }
 
 // subscribe this phone and tell the server (the public key comes from the server, so it is never copied by hand)
-async function subscribeAndSave(supabase) {
+async function subscribeAndSave(supabase, force) {
   const k = await fetch('/api/push').then(r => r.json())
   if (!k || !k.key) throw new Error('notifications are not set up on the server yet')
   const key = b64ToBytes(k.key)
   const reg = await getReg()
   let sub = await reg.pushManager.getSubscription()
-  if (sub && !sameBytes(sub.options && sub.options.applicationServerKey, key)) { await sub.unsubscribe(); sub = null }   // the key changed: subscribe again
+  if (sub && (force || !sameBytes(sub.options && sub.options.applicationServerKey, key))) { await sub.unsubscribe(); sub = null }   // key changed or registration dead: subscribe again
   if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
   await api(supabase, 'POST', { action: 'subscribe', subscription: sub.toJSON() })
   return true
@@ -58,7 +58,17 @@ export async function enablePush(supabase, say) {
     await subscribeAndSave(supabase)
     let t = 'none yet'; try { t = localStorage.getItem('kc_last_notify') || t } catch { /* ignore */ }
     let test = ''
-    try { const r = await api(supabase, 'POST', { action: 'test' }); test = 'test sent to ' + r.phones + ' phone(s), push service says: ' + r.status.join(',') } catch (e) { test = 'test failed: ' + (e.message || e) }
+    try {
+      let r = await api(supabase, 'POST', { action: 'test' })
+      const reg = await getReg(), mine = await reg.pushManager.getSubscription()
+      let healed = ''
+      if (mine && (r.gone || []).includes(mine.endpoint)) {        // THIS phone's registration was dead: make a brand-new one and test again
+        await subscribeAndSave(supabase, true)
+        r = await api(supabase, 'POST', { action: 'test' })
+        healed = ' (this phone was registered again)'
+      }
+      test = 'test sent to ' + r.phones + ' phone(s), push service says: ' + r.status.join(',') + healed
+    } catch (e) { test = 'test failed: ' + (e.message || e) }
     say && say('Notifications are ON 🔔\n' + test + '\nlast action: ' + t)
     return true
   }

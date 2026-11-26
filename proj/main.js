@@ -5,7 +5,6 @@ import { initSocial } from './social.js'
 import { uploadPhoto, compress } from './imgload.js'   // blur-up loading, data saver, smaller uploads   // search, gallery, full-screen viewer, user chooser, likes
 import { offlineFetch, setCacheUser, clearOfflineCache, forceFresh, outbox, jobs, isNetworkError, savedSession, stale, initConnectionBar, registerServiceWorker } from './offline.js'   // works without internet
 import { initPush, enablePush, disablePush, notifyServer } from './push.js'   // notifications when the app is closed
-import { initBackNav } from './backnav.js'   // phone Back button: closes things, goes back, asks before leaving
 import { initCalls, callButtonsHTML } from './call.js'   // voice & video calls
 import { trackProfile } from './track.js'   // creator monetization: counts genuine profile visits (server decides what counts)
 import { inboxPolicyError } from './message-policy.mjs'
@@ -168,7 +167,29 @@ async function runJobs() {
 
 initConnectionBar(() => { if (onBackOnlineHandler) onBackOnlineHandler() })
 registerServiceWorker()
-initBackNav()
+function updateInboxViewport() {
+  const viewport = window.visualViewport
+  document.documentElement.style.setProperty('--kc-visual-top', `${viewport ? viewport.offsetTop : 0}px`)
+  document.documentElement.style.setProperty('--kc-visual-height', `${viewport ? viewport.height : window.innerHeight}px`)
+}
+updateInboxViewport()
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', updateInboxViewport)
+  window.visualViewport.addEventListener('scroll', updateInboxViewport)
+} else {
+  window.addEventListener('resize', updateInboxViewport)
+}
+document.addEventListener('focusin', (event) => {
+  if (event.target instanceof HTMLElement && event.target.id === 'wordsTo') {
+    document.body.classList.add('kc-chat-open')
+    updateInboxViewport()
+  }
+})
+document.addEventListener('focusout', (event) => {
+  if (event.target instanceof HTMLElement && event.target.id === 'wordsTo') {
+    document.body.classList.remove('kc-chat-open')
+  }
+})
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !watcherHooks) return
   const id = watcherHooks.currentChat()
@@ -207,22 +228,14 @@ function fmtSize(n) {
   if (!n) return ''
   return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.ceil(n / 1024) + ' KB'
 }
-const initialPage = new URLSearchParams(location.search).get('page')
-let pageRoutesReady = false
+const initialPage = document.body.dataset.page || 'home'
 let profileCoverTimer = null
-const pageByNav = { peekyourfav: 'home', messages: 'messages', status: 'status', profile: 'profile', search: 'search' }
-function setPageUrl(page) {
-  const url = new URL(location.href)
-  url.searchParams.set('page', page)
-  history.replaceState(history.state, '', url)
-}
 function setNav(name) {
-  document.querySelectorAll('.divi button').forEach(b => b.classList.remove('active'))
+  document.querySelectorAll('.divi .navlink').forEach(b => b.classList.remove('active'))
   if (name) {
     const b = document.querySelector('.divi .' + name)
     if (b) b.classList.add('active')
   }
-  if (pageRoutesReady && pageByNav[name]) setPageUrl(pageByNav[name])
 }
 function search() { showmessage('Search is coming soon') }
 window.search = search
@@ -257,11 +270,13 @@ if (eyeBtn) {
 }
 
 function hideHTML(ID) {
-  document.getElementById(ID).style.display = 'none'
+  const element = document.getElementById(ID)
+  if (element) element.style.display = 'none'
 } window.hideHTML = hideHTML
 
 function showHTML(ID) {
-  document.getElementById(ID).style.display = 'flex'
+  const element = document.getElementById(ID)
+  if (element) element.style.display = 'flex'
 } window.showHTML = showHTML
 
 function getidSvalue(ID) {
@@ -1083,7 +1098,8 @@ async function checkiflog() {
       // nothing saved yet (first time): grey placeholders instead of a loading screen
       let rendered = false
       if (!hostEl.children.length) setTimeout(() => { if (!rendered && !hostEl.children.length) hostEl.innerHTML = `<div class="pagebar"><h3 class="brandtitle">KIREZI CANJE</h3></div>` + skelCards(3) }, 150)
-      document.getElementById('statusPage').style.transform = 'scale(0)'
+      const statusPage = document.getElementById('statusPage')
+      if (statusPage) statusPage.style.transform = 'scale(0)'
       hideHTML('cre')
       hideHTML('loginpage')
       showHTML('navigation')
@@ -1153,15 +1169,13 @@ async function checkiflog() {
       })
     })()
     window.peek = peek
-    peek()
-
     // ----- STATUS (WhatsApp style): my status + status of people I have talked to, last 24 hours -----
     async function openstatus(silent) {
       window.closeOverlays()
       setNav('status')
-      document.getElementById('messenger').style.display = 'none'
-      document.getElementById('allofthem').style.display = 'none'
-      document.getElementById('userJournal').style.display = 'none'
+      hideHTML('messenger')
+      hideHTML('allofthem')
+      hideHTML('userJournal')
       const page = document.getElementById('statusPage')
       page.style.transform = 'scale(1)'
       const me = data.session.user.id
@@ -1312,7 +1326,7 @@ async function checkiflog() {
         const mine = m.sender_id === me
         const un = unread[id] || 0
         const tick = mine ? `<span class="tick${m.read_at ? ' read' : ''}">${m.pending ? '🕓' : (m.read_at ? '✓✓' : '✓')}</span> ` : ''
-        html += `<div class="user${un ? ' unread' : ''}" onclick="openinbox('${id}')">
+        html += `<div class="user${un ? ' unread' : ''}" onclick="openm('${id}')">
         <button class="avatar" style="background-image: url('${p.profile_pic}');" onclick="event.stopPropagation();openUserChoice('${id}')"></button>
         <div class="umid">
           <p class="hisname">${esc(p.full_name)}</p>
@@ -1331,7 +1345,8 @@ async function checkiflog() {
       const had = !!convo.messages
       setNav('messages')
       showHTML('navigation')
-      document.getElementById('statusPage').style.transform = 'scale(0)'
+      const statusPage = document.getElementById('statusPage')
+      if (statusPage) statusPage.style.transform = 'scale(0)'
       hideHTML('allofthem')
       showHTML('messenger')
       hideHTML('userJournal')
@@ -1633,12 +1648,23 @@ async function checkiflog() {
       document.getElementById('selectuser').style.transform = 'scale(1)'
       document.getElementById('inbox').style.display = 'none'
       document.getElementById('inbox').dataset.chat = ''
+      document.getElementById('wordsTo')?.blur()
+      document.body.classList.remove('kc-chat-open')
+      const url = new URL(location.href)
+      url.searchParams.delete('chat')
+      history.replaceState(history.state, '', url)
     }
     window.closeinbox = closeinbox
 
     async function openuser(value) {
       if (!value) {
         openuser(data.session.user.id)
+        return
+      }
+      const profileParam = new URLSearchParams(location.search).get('user')
+      if (initialPage !== 'profile' || (profileParam && profileParam !== value) ||
+        (!profileParam && value !== data.session.user.id)) {
+        location.href = `profile.html?user=${encodeURIComponent(value)}`
         return
       }
 
@@ -1656,10 +1682,10 @@ async function checkiflog() {
       profilePosts = []
       document.getElementById('userJournal').dataset.profile = u.id
       setNav(mine ? 'profile' : '')
-      if (pageRoutesReady) setPageUrl('profile')
       if (!mine) trackProfile(supabase, u.id, data.session.user.id)   // monetization: one genuine visit per viewer per day (server-side)
 
-      document.getElementById('statusPage').style.transform = 'scale(0)'
+      const statusPage = document.getElementById('statusPage')
+      if (statusPage) statusPage.style.transform = 'scale(0)'
       hideHTML('messenger')
       hideHTML('allofthem')
       showHTML('userJournal')
@@ -1762,6 +1788,11 @@ async function checkiflog() {
     window.openuser = openuser
 
     function openm(value) {
+      const chatParam = new URLSearchParams(location.search).get('chat')
+      if (initialPage !== 'messages' || chatParam !== value) {
+        location.href = `messages.html?chat=${encodeURIComponent(value)}`
+        return
+      }
       onpenmessages(true)
       openinbox(value)
     }
@@ -1794,8 +1825,8 @@ async function checkiflog() {
       const me = data.session.user.id
       const visible = (id) => { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none' }
       const hooks = {
-        chatOpenWith: (id) => { const i = document.getElementById('inbox'); return i.style.display === 'flex' && i.dataset.chat === id },
-        currentChat: () => { const i = document.getElementById('inbox'); return i.style.display === 'flex' ? i.dataset.chat : null },
+        chatOpenWith: (id) => { const i = document.getElementById('inbox'); return !!i && i.style.display === 'flex' && i.dataset.chat === id },
+        currentChat: () => { const i = document.getElementById('inbox'); return i && i.style.display === 'flex' ? i.dataset.chat : null },
         openChat: (id) => openinbox(id),
         // a new message came in: the chats list changes at once (new line on top, red number, preview)
         incoming: (m) => {
@@ -1878,17 +1909,14 @@ async function checkiflog() {
         } catch { /* ignore */ }
       }
       window.kcPushToggle = () => enablePush(supabase, (t) => showmessage(t))
-      if (location.search.includes('chat=') || location.search.includes('user=')) {
-        setTimeout(() => { openUrlHandler(location.href); history.replaceState(history.state, '', location.pathname) }, 900)
-      }
+      if (new URLSearchParams(location.search).has('chat')) setTimeout(() => openUrlHandler(location.href), 900)
     }
 
-    pageRoutesReady = true
     if (initialPage === 'messages') onpenmessages(true)
     else if (initialPage === 'status') openstatus(true)
-    else if (initialPage === 'profile') openuser()
+    else if (initialPage === 'profile') openuser(new URLSearchParams(location.search).get('user') || undefined)
     else if (initialPage === 'search') window.openSearch()
-    else setPageUrl('home')
+    else peek()
 
   } else {
     waitAsec('cancel')
@@ -2147,7 +2175,8 @@ function listenMessages(value) {
           (msg.sender_id === currentUserId &&
             msg.receiver_id === value)
         ) {
-          const inboxOpen = document.getElementById('inbox').style.display == 'flex'
+          const inbox = document.getElementById('inbox')
+          const inboxOpen = inbox && inbox.style.display === 'flex'
 
           // Refresh the conversation
           if (inboxOpen) {

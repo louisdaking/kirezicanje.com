@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v15'
+const VERSION = 'kc-v16'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'
@@ -17,6 +17,13 @@ const MAX_IMG = 250
 const SHELL = [
   './',
   'index.html',
+  'messages.html',
+  'status.html',
+  'profile.html',
+  'search.html',
+  'shared-shell.html',
+  'page-loader.js',
+  'install.js',
   'app.html',
   'main.js',
   'social.js',
@@ -130,6 +137,8 @@ self.addEventListener('fetch', (event) => {
       try { return await withTimeout(fetch(req), 4000) }
       catch {
         const cache = await caches.open(SHELL_CACHE)
+        const page = await cache.match(req, { ignoreSearch: true })
+        if (page) return page
         return (await cache.match('index.html')) || (await cache.match('./')) || Response.error()
       }
     })())

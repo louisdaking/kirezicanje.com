@@ -976,9 +976,17 @@ export function initSocial(ctx) {
   }
 
   function openSearch() {
+    if (document.body.dataset.page !== 'search') {
+      location.href = 'search.html'
+      return
+    }
     closeOverlays()
-    ;['allofthem', 'messenger', 'userJournal'].forEach(id => { $(id).style.display = 'none' })
-    $('statusPage').style.transform = 'scale(0)'
+    ;['allofthem', 'messenger', 'userJournal'].forEach(id => {
+      const page = $(id)
+      if (page) page.style.display = 'none'
+    })
+    const statusPage = $('statusPage')
+    if (statusPage) statusPage.style.transform = 'scale(0)'
     $('navigation').style.display = 'flex'
     ctx.setNav('search')
     $('searchPage').style.display = 'flex'
@@ -1009,7 +1017,8 @@ export function initSocial(ctx) {
     closeGallery()
     closeSheet()
     $('likersModal').style.display = 'none'
-    $('searchPage').style.display = 'none'
+    const searchPage = $('searchPage')
+    if (searchPage) searchPage.style.display = 'none'
   }
 
   // ---------------------------------------------------

@@ -12,4 +12,4 @@ Run [`proj/block-external-message.sql`](./proj/block-external-message.sql) once 
 
 ## Main app pages
 
-The main views can be opened directly and bookmarked with the `page` query parameter: `proj/index.html?page=home`, `?page=messages`, `?page=status`, `?page=profile`, or `?page=search`. The same shared app shell keeps login and offline data available across these views.
+The app uses separate documents for each major section: [`index.html`](./proj/index.html), [`messages.html`](./proj/messages.html), [`status.html`](./proj/status.html), [`profile.html`](./proj/profile.html), and [`search.html`](./proj/search.html). Each page loads the shared shell from `proj/shared-shell.html`, while Supabase retains the authentication session across same-origin navigation. Old `?page=...` links and `?chat=...` / `?user=...` deep links are redirected to the matching page.

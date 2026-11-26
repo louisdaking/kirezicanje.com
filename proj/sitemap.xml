@@ -9,12 +9,29 @@
     <priority>1.0</priority>
   </url>
 
-  <!-- Example Subpage (Add your actual pages below) -->
   <url>
-    <loc>https://kirezicanje.com/about</loc>
+    <loc>https://kirezicanje.com/messages.html</loc>
     <lastmod>2026-10-26</lastmod>
-    <changefreq>monthly</changefreq>
+    <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://kirezicanje.com/status.html</loc>
+    <lastmod>2026-10-26</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kirezicanje.com/profile.html</loc>
+    <lastmod>2026-10-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://kirezicanje.com/search.html</loc>
+    <lastmod>2026-10-26</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
   </url>
 
 </urlset>

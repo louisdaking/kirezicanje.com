@@ -128,10 +128,10 @@ html.kc-js .kc-reveal.kc-in { animation: kcRise .55s var(--smooth) both; }
 /* ---------------------------------------------------------
    4. BOTTOM BAR
    --------------------------------------------------------- */
-.navigation button { position: relative; transition: transform .25s var(--spring), opacity .2s ease, background-color .25s ease; }
+.navigation .navlink { position: relative; transition: transform .25s var(--spring), opacity .2s ease, background-color .25s ease; }
 @keyframes kcNavPop { 0% { transform: scale(.7); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
-.navigation button.active:not(.peekyourfav) { animation: kcNavPop .45s var(--spring); }
-.navigation button.active:not(.peekyourfav)::after {
+.navigation .navlink.active:not(.peekyourfav) { animation: kcNavPop .45s var(--spring); }
+.navigation .navlink.active:not(.peekyourfav)::after {
     content: ""; position: absolute; left: 50%; bottom: -9px; width: 5px; height: 5px; margin-left: -2.5px;
     border-radius: 50%; background: var(--magenta); box-shadow: 0 0 8px var(--magenta);
     animation: kcPopIn .4s var(--spring) both;
@@ -223,7 +223,7 @@ html.kc-js .kc-reveal.kc-in { animation: kcRise .55s var(--smooth) both; }
     .g-item { transition: transform .3s var(--smooth), box-shadow .3s ease; }
     .g-item:hover { transform: scale(1.04); box-shadow: 0 12px 28px rgba(255, 46, 147, .32); z-index: 2; }
     .g-item:hover img, .g-item:hover video { filter: saturate(1.15) brightness(1.04); }
-    .navigation button:not(.peekyourfav):hover { opacity: 1; transform: translateY(-4px) scale(1.1); }
+    .navigation .navlink:not(.peekyourfav):hover { opacity: 1; transform: translateY(-4px) scale(1.1); }
     .navigation .peekyourfav:hover { transform: scale(1.12) rotate(-4deg); }
     .likebtn:hover { transform: scale(1.18); opacity: .9; }
     .s-did:hover { transform: translateY(-2px); border-style: solid; }

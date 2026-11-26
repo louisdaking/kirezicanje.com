@@ -136,6 +136,12 @@ button:active { transform: scale(.94); }
 /* =========================================================
    LOGIN / SIGN UP
    ========================================================= */
+html:not(.kc-auth-ready) .brand_couple,
+html:not(.kc-auth-ready) .loginpage,
+html:not(.kc-auth-ready) .cre {
+    display: none !important;
+}
+
 .brand_couple {
     display: flex;
     align-items: center;

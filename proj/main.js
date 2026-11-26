@@ -937,12 +937,16 @@ async function checkiflog() {
     if (saved?.user?.id) { data = { session: saved }; error = null }
   }
   if (!data) data = { session: null }
+  document.documentElement.classList.add('kc-auth-ready')
   if (error) {
     waitAsec('cancel')
     softError(error);
   } else if (data.session) {
     waitAsec('cancel')
     document.documentElement.classList.add('kc-has-session')
+    hideHTML('brand_couple')
+    hideHTML('loginpage')
+    hideHTML('cre')
     showmessage("MURAHAWE IKAZE " + (data.session.user.user_metadata?.full_name || ''));
 
 

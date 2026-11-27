@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v18'
+const VERSION = 'kc-v19'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'
@@ -27,6 +27,7 @@ const SHELL = [
   'install.js',
   'app.html',
   'main.js',
+  'message-policy.mjs',
   'social.js',
   'smartsearch.js',
   'imgload.js',

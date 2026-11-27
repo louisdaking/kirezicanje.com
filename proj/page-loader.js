@@ -52,25 +52,31 @@ async function start() {
     if (!response.ok) throw new Error(`Shared app shell failed to load (${response.status})`)
     const shell = new DOMParser().parseFromString(await response.text(), 'text/html')
     shell.body.querySelectorAll('script').forEach(script => script.remove())
-    const pageViews = {
-      home: 'allofthem',
-      messages: 'messenger',
-      status: 'statusPage',
-      profile: 'userJournal',
-      search: 'searchPage'
-    }
-    const pageView = pageViews[document.body.dataset.page] || pageViews.home
-    for (const id of Object.values(pageViews)) {
-      if (id !== pageView) shell.getElementById(id)?.remove()
-    }
+    // keep every view in the page: main.js looks them all up by id, and each one is hidden by CSS until it is opened
     document.getElementById('kcShell').replaceWith(...shell.body.childNodes)
   }
-  await import('./install.js')
+  // optional parts must never stop the app from starting
+  await import('./install.js').catch(error => console.warn('[kirezi] install button failed', error))
   await import('./main.js')
-  await import('./glow.js')
+  await import('./glow.js').catch(error => console.warn('[kirezi] glow effects failed', error))
+}
+
+function showLoadError() {
+  if (document.getElementById('kcLoadError')) return
+  const box = document.createElement('div')
+  box.id = 'kcLoadError'
+  box.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:24px;text-align:center;background:#1B0A17;color:#fff;font:600 16px system-ui,sans-serif'
+  box.innerHTML = '<div>KIREZI CANJE could not load.<br>Check your connection and try again.</div>'
+  const btn = document.createElement('button')
+  btn.textContent = 'Try again'
+  btn.style.cssText = 'padding:12px 28px;border:0;border-radius:999px;background:linear-gradient(135deg,#FF2E93,#FF7A59);color:#fff;font:800 16px system-ui,sans-serif'
+  btn.onclick = () => { window.kcClearPageCache?.(); location.reload() }
+  box.appendChild(btn)
+  document.body.appendChild(box)
 }
 
 start().catch(error => {
   console.error('[kirezi] app page failed to start', error)
-  document.getElementById('kcShell').textContent = 'KIREZI CANJE could not load. Check your connection and refresh.'
+  window.kcClearPageCache?.()
+  showLoadError()
 })

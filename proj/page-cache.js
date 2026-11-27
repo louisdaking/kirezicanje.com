@@ -1,4 +1,4 @@
-const CACHE_PREFIX = 'kc-page-snapshot:v2:'
+const CACHE_PREFIX = 'kc-page-snapshot:v3:'
 const shell = document.getElementById('kcShell')
 
 if (document.documentElement.style) document.documentElement.style.backgroundColor = '#1B0A17'

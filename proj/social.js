@@ -1031,7 +1031,7 @@ export function initSocial(ctx) {
     const mySeq = ++S.seq
 
     if (!S.all) {
-      if (!body.children.length) body.innerHTML = '<div class="s-sk">' + '<div class="s-row sk"><i></i><b></b></div>'.repeat(6) + '</div>'
+      if (!body.children.length) body.innerHTML = window.kcLoader.inline()
       await loadProfiles()
       renderFilters()
       if (mySeq !== S.seq) return

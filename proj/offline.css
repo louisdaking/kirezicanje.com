@@ -55,7 +55,7 @@
 .kc-has-session #loginpage, .kc-has-session #brand_couple, .kc-has-session #cre { display: none !important; }
 
 /* placeholders while the very first data comes (instead of a loading screen) */
-.skel .sk-av, .skel .sk-l, .skel .sk-media { background: linear-gradient(90deg, #f1e4ea 25%, #fbf3f7 50%, #f1e4ea 75%); background-size: 200% 100%; animation: kcsk 1.2s ease-in-out infinite; }
+.skel .sk-av, .skel .sk-l, .skel .sk-media { background: #f6e7ee; }
 .skel .sk-av { display: block; width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
 .skel .sk-l { display: block; height: 12px; border-radius: 6px; margin: 7px 0; } .skel .w25 { width: 25%; } .skel .w40 { width: 40%; } .skel .w50 { width: 50%; } .skel .w70 { width: 70%; }
 .skel .sk-media { height: 220px; border-radius: 14px; margin: 8px 14px 14px; }

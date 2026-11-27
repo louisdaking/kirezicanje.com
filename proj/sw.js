@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v24'
+const VERSION = 'kc-v25'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'
@@ -33,6 +33,8 @@ const SHELL = [
   'imgload.js',
   'glow.js',
   'glow.css',
+  'kc-loader.css',
+  'kc-loader.js',
   'offline.js',
   'backnav.js',
   'push.js',

@@ -85,7 +85,7 @@ export function mountReviews(root) {
     <div id="ksSummary"></div>
     <div class="ks-rate" id="ksRate"></div>
     <div class="ks-tabs"><button data-sort="helpful" class="on">Most Helpful</button><button data-sort="newest">Newest</button></div>
-    <div id="ksList"><p class="ks-empty">Loading…</p></div>`
+    <div id="ksList">${window.kcLoader.inline()}</div>`
 
   const $ = id => root.querySelector(id)
 

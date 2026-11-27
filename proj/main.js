@@ -442,8 +442,8 @@ function authError(err) {
 }
 
 // grey placeholders (only if there is nothing saved yet): no loading screen
-const skelCards = (n) => Array.from({ length: n }, () => `<div class="post skel"><div class="userinfos"><span class="sk-av"></span><div style="flex:1"><i class="sk-l w40"></i><i class="sk-l w25"></i></div></div><div class="sk-media"></div></div>`).join('')
-const skelRows = (n) => Array.from({ length: n }, () => `<div class="user skel"><span class="sk-av"></span><div class="umid"><i class="sk-l w50"></i><i class="sk-l w70"></i></div></div>`).join('')
+const skelCards = () => window.kcLoader.inline()      // first load: the two-hearts loader
+const skelRows = () => window.kcLoader.inline()
 
 // the fresh copy arrived in the background: the screen you are on updates quietly
 let freshHandler = null, freshTimer = null
@@ -1173,7 +1173,7 @@ async function checkiflog() {
         return
       }
       if (!offlineNow && sorted.length > FEED_PAGE) {
-        host.insertAdjacentHTML('beforeend', `<div id="feedSentinel" class="feedmore"><span class="kc-dots"><i></i><i></i><i></i></span></div>`)
+        host.insertAdjacentHTML('beforeend', `<div id="feedSentinel" class="feedmore">${window.kcLoader.inline()}</div>`)
         feedIO = new IntersectionObserver((en) => { if (en.some(e => e.isIntersecting)) renderFeedChunk(false) }, { rootMargin: '700px 0px' })     // the page itself scrolls
         feedIO.observe(document.getElementById('feedSentinel'))
         renderFeedChunk(false)
@@ -1801,7 +1801,7 @@ async function checkiflog() {
       </section>
       <section class="profile-posts" aria-label="Posts">
         <h2 class="profile-posts-title">Posts</h2>
-        <div class="profile-post-list"><div class="empty"><p>Loading posts…</p></div></div>
+        <div class="profile-post-list">${window.kcLoader.inline('Loading posts…')}</div>
       </section>
     </main>`
       const coverSlides = document.querySelector('#userJournal .profile-cover-slides')

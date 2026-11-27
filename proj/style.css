@@ -124,14 +124,14 @@ button:active { transform: scale(.94); }
     position: fixed;
     inset: 0;
     z-index: 1000000001;
-    display: grid;
+    display: none;
     place-items: center;
     padding: 24px;
     background: rgba(27, 10, 23, .72);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 }
-.kc-welcome.open { animation: kcWelcomeFade .2s ease-out both; }
+.kc-welcome.open { display: grid; animation: kcWelcomeFade .2s ease-out both; }
 .kc-welcome-card {
     position: relative;
     width: min(100%, 390px);

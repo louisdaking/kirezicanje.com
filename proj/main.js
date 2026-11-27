@@ -316,6 +316,9 @@ document.addEventListener('keydown', (event) => {
 document.getElementById('kcWelcome')?.addEventListener('click', (event) => {
   if (event.target === event.currentTarget) closeWelcome()
 })
+document.querySelectorAll('#kcWelcome [data-kc-welcome-close]').forEach((button) => {
+  button.addEventListener('click', closeWelcome)
+})
 
 // ---------- developer errors go to the console only (users never see them) ----------
 window.addEventListener('error', (e) => { console.error('[kirezi]', e.message, e.error) })

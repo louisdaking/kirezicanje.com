@@ -45,7 +45,50 @@ function routeLegacyUrl() {
   return true
 }
 
+// ---------- attractive loading (dating-app look) ----------
+const heartSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'
+function loaderBox(id, text) {
+  const box = document.createElement('div')
+  box.id = id
+  box.className = 'kc-loader'
+  box.setAttribute('role', 'status')
+  box.innerHTML = `<div class="kc-loader-hearts"><span>${heartSvg}</span><span>${heartSvg}</span></div><b>KIREZI CANJE</b><small>${text || ''}</small><span class="kc-dots"><i></i><i></i><i></i></span>`
+  return box
+}
+// small "please wait" for actions (uploading a photo, ...): const done = kcBusy('text'); ...; done()
+window.kcBusy = (text) => {
+  const box = loaderBox('kcBusy' + Date.now(), text)
+  box.classList.add('kc-busy')
+  document.body.appendChild(box)
+  let closed = false
+  const done = () => { if (closed) return; closed = true; box.classList.add('out'); setTimeout(() => box.remove(), 250) }
+  setTimeout(done, 60000)   // never stuck
+  return done
+}
+function showSplash() {
+  const shellEl = document.getElementById('kcShell')
+  if (shellEl && shellEl.dataset.snapshotRestored) return   // the last screen is already visible
+  const box = loaderBox('kcSplash', 'Meet your soulmate')
+  document.body.appendChild(box)
+  let gone = false
+  const hide = () => {
+    if (gone) return
+    gone = true
+    box.classList.add('out')
+    setTimeout(() => box.remove(), 350)
+  }
+  const root = document.documentElement
+  const check = () => { if (root.classList.contains('kc-auth-ready')) { setTimeout(hide, 250); return true } return false }
+  if (!check()) {
+    const mo = new MutationObserver(() => { if (check()) mo.disconnect() })
+    mo.observe(root, { attributes: true, attributeFilter: ['class'] })
+  }
+  setTimeout(hide, 12000)   // failsafe
+  window.kcHideSplash = hide
+}
+
 async function start() {
+  showSplash()
   if (routeLegacyUrl()) return
   if (!document.getElementById('kcShell').dataset.snapshotRestored) {
     const response = await fetch('shared-shell.html')
@@ -64,6 +107,7 @@ async function start() {
 }
 
 function showLoadError(error) {
+  window.kcHideSplash?.()
   if (document.getElementById('kcLoadError')) return
   const box = document.createElement('div')
   box.id = 'kcLoadError'

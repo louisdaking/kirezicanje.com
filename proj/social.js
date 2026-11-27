@@ -463,6 +463,7 @@ export function initSocial(ctx) {
     if (!p) { closePostViewer(); return }
     const u = profileCache[p.user_id] || {}
     const own = p.user_id === me && !p.virtual
+    const canManage = !p.virtual && (own || isAdmin)
     const kind = kindOf(p)
     const label = kind === 'profile' ? 'Profile photo' : kind === 'status' ? 'Status' : ''
     const media = isVideo(p)
@@ -480,7 +481,7 @@ export function initSocial(ctx) {
       <div class="pv-top">
         <button class="pv-btn pv-back" onclick="closePostViewer()" aria-label="Back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
         <span class="pv-counter">${pv.list.length > 1 ? (pv.i + 1) + ' / ' + pv.list.length : ''}</span>
-        ${own ? `<button class="pv-btn pv-more" onclick="pvMenu()" aria-label="More">⋯</button>` : ''}
+        ${canManage ? `<button class="pv-btn pv-more" onclick="pvMenu()" aria-label="More">⋯</button>` : ''}
       </div>
       ${isVideo(p) ? '' : `<div class="pv-zoom" aria-label="Image zoom controls">
         <button type="button" onclick="kcViewerZoom(-.5)" aria-label="Zoom out">−</button>
@@ -634,13 +635,34 @@ export function initSocial(ctx) {
   })
 
   // ----- the "..." menu: only for MY posts -----
+  // administrators (monetization_admins) may remove anybody's post; the server checks it again
+  let isAdmin = false
+  ;(async () => {
+    try {
+      const { data: sd } = await supabase.auth.getSession()
+      const token = sd && sd.session && sd.session.access_token
+      if (!token || navigator.onLine === false) return
+      const r = await fetch('/api/admin?action=whoami', { headers: { Authorization: 'Bearer ' + token }, cache: 'no-store' })
+      if (r.ok) isAdmin = !!(await r.json()).admin
+    } catch { /* not an admin / offline */ }
+  })()
+  function currentManagedPost() {
+    const p = pv.list[pv.i]
+    return p && !p.virtual && (p.user_id === me || isAdmin) ? p : null
+  }
   function currentOwnPost() {
     const p = pv.list[pv.i]
     return p && !p.virtual && p.user_id === me ? p : null
   }
   function pvMenu() {
-    const p = currentOwnPost()
+    const p = currentManagedPost()
     if (!p) return
+    if (p.user_id !== me) {   // administrator looking at somebody else's post
+      openSheet(`
+      <h4>Admin</h4>
+      <button class="uc-row danger" onclick="pvConfirmDelete()"><span class="uc-ic">🗑️</span><span><b>Delete this post</b><small>Removes it for everyone</small></span></button>`)
+      return
+    }
     const pic = isPic(p)
     openSheet(`
       <h4>Manage this post</h4>
@@ -701,7 +723,7 @@ export function initSocial(ctx) {
     await window.kcDownloadMedia(p.media_url, 'kirezi-' + Date.now())
   }
   function pvConfirmDelete() {
-    const p = currentOwnPost()
+    const p = currentManagedPost()
     if (!p) return
     openSheet(`
       <h4>Delete this ${isVideo(p) ? 'video' : 'photo'}?</h4>
@@ -714,8 +736,26 @@ export function initSocial(ctx) {
       </div>`)
   }
   async function pvDelete() {
-    const p = currentOwnPost()
+    const p = currentManagedPost()
     if (!p) return
+    if (p.user_id !== me) {
+      // administrator: the server deletes it (and its likes and file)
+      try {
+        const { data: sd } = await supabase.auth.getSession()
+        const r = await fetch('/api/admin?action=delete_post', { method: 'POST', cache: 'no-store',
+          headers: { Authorization: 'Bearer ' + sd.session.access_token, 'Content-Type': 'application/json' }, body: JSON.stringify({ post_id: String(p.id) }) })
+        const j = await r.json().catch(() => ({}))
+        if (!r.ok || !j.ok) { showmessage(j.error || 'Not deleted'); return }
+      } catch (e) { window.softError(e, 'Not deleted'); return }
+      store.delete(String(p.id))
+      pv.list.splice(pv.i, 1)
+      if (pv.i >= pv.list.length) pv.i = pv.list.length - 1
+      closeSheet()
+      showmessage('Deleted ✅')
+      if (pv.onChange) pv.onChange(p, 'delete')
+      pvRender()
+      return
+    }
     const del = () => supabase.from('posts').delete().eq('id', p.id).eq('user_id', me).select()
     let { data, error } = await del()
     if (error && (error.code === '23503' || /foreign key/i.test(error.message))) {

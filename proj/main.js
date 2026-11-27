@@ -1173,7 +1173,7 @@ async function checkiflog() {
         return
       }
       if (!offlineNow && sorted.length > FEED_PAGE) {
-        host.insertAdjacentHTML('beforeend', `<div id="feedSentinel" class="feedmore">Loading more…</div>`)
+        host.insertAdjacentHTML('beforeend', `<div id="feedSentinel" class="feedmore"><span class="kc-dots"><i></i><i></i><i></i></span></div>`)
         feedIO = new IntersectionObserver((en) => { if (en.some(e => e.isIntersecting)) renderFeedChunk(false) }, { rootMargin: '700px 0px' })     // the page itself scrolls
         feedIO.observe(document.getElementById('feedSentinel'))
         renderFeedChunk(false)
@@ -1209,6 +1209,7 @@ async function checkiflog() {
     async function openstatus(silent) {
       window.closeOverlays()
       setNav('status')
+      showHTML('navigation')   // the bottom buttons stay on the Status page too
       hideHTML('messenger')
       hideHTML('allofthem')
       hideHTML('userJournal')
@@ -1699,6 +1700,39 @@ async function checkiflog() {
     }
     window.closeinbox = closeinbox
 
+    // change my profile picture (same upload as sign-up: smaller copy + avatar copy, then the profile row is updated)
+    function kcChangeAvatar() {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.onchange = async () => {
+        const file = input.files && input.files[0]
+        if (!file) return
+        if (!file.type.startsWith('image/')) { showmessage('choose a photo'); return }
+        if (!navigator.onLine) { showmessage('You need internet to change your photo'); return }
+        const done = window.kcBusy ? window.kcBusy('Updating your photo…') : () => {}
+        try {
+          const me = data.session.user.id
+          const uploaded = await uploadPhoto(supabase, 'avatars', me, file, { maxSide: 1080, quality: 0.82 })
+          const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(uploaded.path)
+          const profile_pic = urlData.publicUrl
+          const { data: updated, error } = await supabase.from('profiles').update({ profile_pic }).eq('id', me).select('id')
+          if (error) throw error
+          if (!updated || !updated.length) throw new Error('Supabase did not allow this change (profiles UPDATE rule)')
+          // the new photo also joins my photos, like at sign-up (best effort)
+          await supabase.from('posts').insert([{ user_id: me, kind: 'feed', media_url: profile_pic, media_type: file.type, caption: null }]).then(() => {}, () => {})
+          if (profileCache[me]) profileCache[me].profile_pic = profile_pic
+          forceFresh(8000)
+          showmessage('Photo updated ✅')
+          openuser(me)
+        } catch (e) {
+          softError(e, 'Photo not changed')
+        } finally { done() }
+      }
+      input.click()
+    }
+    window.kcChangeAvatar = kcChangeAvatar
+
     async function openuser(value) {
       if (!value) {
         openuser(data.session.user.id)
@@ -1758,6 +1792,7 @@ async function checkiflog() {
           ${mine ? '' : `<button class="messag" onclick="openm('${esc(u.id)}')">Message</button>`}
           ${mine ? '' : `<button class="followbig ${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'on' : ''}" data-follow="${esc(u.id)}" onclick="toggleFollow('${esc(u.id)}')">${window.kcIsFollowing && window.kcIsFollowing(u.id) ? 'Following ✓' : '+ Follow'}</button>`}
           <button class="photos" onclick="openGallery('${esc(u.id)}')">Photos</button>
+          ${mine ? `<button class="photos" onclick="kcChangeAvatar()">📷 Change photo</button>` : ''}
           ${mine ? `<button class="photos" onclick="kcPushToggle()">🔔 Notifications</button>` : ''}
           ${mine ? `<button class="photos" onclick="location.href='monetize.html'">Creator dashboard</button>` : ''}
           ${mine ? `<button class="photos" onclick="location.href='app.html#reviews'">⭐ Rate app</button>` : ''}

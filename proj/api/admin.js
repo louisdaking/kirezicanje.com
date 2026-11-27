@@ -27,6 +27,8 @@ async function reevaluateSome(max = 150, budgetMs = 8000) {   // after settings 
 }
 
 const handlers = {
+  async whoami() { return { admin: true } },   // reaching this line means requireAdmin passed
+
   async overview() {
     const [periods, elig, flags, wd] = await Promise.all([
       sb.select('monetization_periods', {}, { order: 'period.desc', limit: 60 }),
@@ -115,6 +117,21 @@ const handlers = {
 }
 
 const posts = {
+  // an administrator removes ANY post (service role: the owner-only rules of the "posts" table do not apply here)
+  async delete_post(b, admin) {
+    const id = String(b.post_id || '')
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) throw Object.assign(new Error('invalid post'), { public: true })
+    const rows = await sb.select('posts', { id: 'eq.' + id }, { select: 'id,user_id,media_url,kind' })
+    if (!rows.length) throw Object.assign(new Error('Post not found'), { public: true })
+    const row = rows[0]
+    await sb.call('/rest/v1/post_likes?post_id=eq.' + encodeURIComponent(id), { method: 'DELETE' }).catch(() => {})
+    await sb.call('/rest/v1/posts?id=eq.' + encodeURIComponent(id), { method: 'DELETE', headers: { Prefer: 'return=minimal' } })
+    const m = String(row.media_url || '').match(/\/object\/public\/posts\/([^?]+)/)
+    if (m) await sb.call('/storage/v1/object/posts/' + m[1].split('/').map(encodeURIComponent).join('/'), { method: 'DELETE' }).catch(() => {})
+    await sb.rpc('mz_audit', { p_actor: admin.id, p_action: 'post_deleted', p_target: id, p_details: { owner: row.user_id } }).catch(() => {})
+    return { deleted: id }
+  },
+
   async decide(b, admin) {
     if (!isUuid(b.user_id)) throw new Error('invalid status')
     const e = await sb.rpc('mz_set_creator_status', {

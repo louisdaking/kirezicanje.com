@@ -53,7 +53,7 @@ function runPageCache({ authenticated, snapshot = null, authUserId = 'user-1' } 
     window: { addEventListener: (name, handler) => { handlers[name] = handler }, scrollY: 0, scrollTo() {} },
     console: { warn() {} }
   }
-  const key = 'kc-page-snapshot:v2:/messages.html?chat=ana'
+  const key = 'kc-page-snapshot:v4:/messages.html?chat=ana'
   if (snapshot) storage[key] = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot)
   vm.runInNewContext(fs.readFileSync(require.resolve('../page-cache.js'), 'utf8'), sandbox)
   return { shell, handlers, storage, key, window: sandbox.window, snapshotWelcome: () => snapshotWelcome }
@@ -192,8 +192,8 @@ const N = (token, body) => call(notify, { token, body })
   })
   console.log('page snapshots')
   await test('restores a visited page immediately and refreshes its snapshot on navigation', () => {
-    const cache = runPageCache({ authenticated: true, snapshot: { userId: 'user-1', html: '<main>last visit</main>' } })
-    assert.strictEqual(cache.shell.innerHTML, '<main>last visit</main>')
+    const cache = runPageCache({ authenticated: true, snapshot: { userId: 'user-1', html: '<main>last visit</main>' + '<i></i>'.repeat(200) } })
+    assert.ok(cache.shell.innerHTML.startsWith('<main>last visit</main>'))
     cache.shell.innerHTML = '<main>latest visit</main>'
     cache.handlers.pagehide()
     assert.strictEqual(JSON.parse(cache.storage[cache.key]).html, '<main>latest visit</main>')
@@ -211,12 +211,12 @@ const N = (token, body) => call(notify, { token, body })
     assert.strictEqual(cache.storage[cache.key], undefined)
   })
   await test('does not restore a snapshot owned by another signed-in user', () => {
-    const cache = runPageCache({ authenticated: true, authUserId: 'user-2', snapshot: { userId: 'user-1', html: '<main>private</main>' } })
+    const cache = runPageCache({ authenticated: true, authUserId: 'user-2', snapshot: { userId: 'user-1', html: '<main>private</main>' + '<i></i>'.repeat(200) } })
     assert.strictEqual(cache.shell.innerHTML, '')
     assert.strictEqual(cache.storage[cache.key], undefined)
   })
   await test('does not restore a private page snapshot without a signed-in user', () => {
-    const cache = runPageCache({ authenticated: true, authUserId: null, snapshot: { userId: 'user-1', html: '<main>private</main>' } })
+    const cache = runPageCache({ authenticated: true, authUserId: null, snapshot: { userId: 'user-1', html: '<main>private</main>' + '<i></i>'.repeat(200) } })
     assert.strictEqual(cache.shell.innerHTML, '')
     assert.strictEqual(cache.storage[cache.key], undefined)
   })

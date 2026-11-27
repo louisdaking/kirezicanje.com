@@ -600,3 +600,39 @@ body.kc-viewer-open { overflow: hidden; overscroll-behavior: none; }
 .uc-row.danger b { color: var(--danger); }
 .btn-del { background: var(--danger); color: #fff; }
 .sheet-note { margin: 0; color: var(--mist); font-size: 15px; line-height: 1.45; }
+
+/* =========================================================
+   FULL SCREEN VIEWER — dating-app look (photo card, round buttons, details below)
+   ========================================================= */
+.pviewer.pv-dating { --ph: 60vh; background: #fff; color: #1B0A17; overflow: hidden; }
+@supports (height: 100dvh) { .pviewer.pv-dating { --ph: 60dvh; } }
+.pv-dating .pv-stage { inset: 0 0 auto 0; height: var(--ph); background: #1B0A17; border-radius: 0 0 30px 30px; overflow: hidden; }
+.pv-dating .pv-stage img, .pv-dating .pv-stage .kc-img, .pv-dating .pv-stage .kc-img.kc-ready { width: 100%; height: 100%; max-width: none; max-height: none; object-fit: cover; }
+.pv-dating .pv-stage video { width: 100%; height: 100%; object-fit: cover; }
+.pv-dating .pv-top { background: none; padding: calc(14px + var(--safe-t)) 16px 0; pointer-events: none; }
+.pv-dating .pv-top > * { pointer-events: auto; }
+.pv-dating .pv-btn { width: 44px; height: 44px; border-radius: 14px; background: #fff; color: #FF2E93; box-shadow: 0 4px 14px rgba(0,0,0,.18); display: grid; place-items: center; }
+.pv-dating .pv-counter { margin-left: auto; padding: 5px 12px; border-radius: 999px; background: rgba(0,0,0,.4); color: #fff; font-size: 12px; opacity: 1; }
+.pv-dating .pv-counter:empty { display: none; }
+.pv-dating .pv-more { margin-left: 8px; font-size: 22px; }
+.pv-dating .pv-zoom { top: calc(70px + var(--safe-t)); bottom: auto; right: 16px; z-index: 4; }
+.pv-dating .pv-arrow { top: calc(var(--ph) / 2); }
+.pv-fabs { position: absolute; left: 0; right: 0; top: calc(var(--ph) - 38px); z-index: 5; display: flex; justify-content: center; gap: 18px; transition: opacity .2s ease; }
+.pv-dating .pv-fab, .pv-dating .pv-fabs .likebtn { width: 76px; height: 76px; border-radius: 50%; background-color: #fff; box-shadow: 0 8px 22px rgba(27,10,23,.22); display: grid; place-items: center; opacity: 1; transform: none; filter: none; border: 0; }
+.pv-dating .pv-fabs .likebtn { background-size: 46%; background-repeat: no-repeat; background-position: center; }
+.pv-dating .pv-fabs .likebtn:not(.liked) { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23FF2E5B' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E"); }
+.pv-dating .pv-fabs .likebtn.liked { background-color: #FF2E5B; box-shadow: 0 8px 22px rgba(255,46,91,.45); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23fff' d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E"); }
+.pv-dating .pv-fab:active, .pv-dating .pv-fabs .likebtn:active { transform: scale(.9); }
+.pv-info { position: absolute; left: 0; right: 0; top: var(--ph); bottom: 0; overflow-y: auto; padding: 52px 22px calc(24px + var(--safe-b)); background: #fff; -webkit-overflow-scrolling: touch; }
+.pv-nameline { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+.pv-nameline h2 { flex: 1; margin: 0; font: 800 24px var(--display, system-ui); letter-spacing: -.3px; color: #1B0A17; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-avs { width: 40px; height: 40px; border-radius: 50%; flex: none; background: var(--blush, #FFF1F6) center/cover; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.pv-loc { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: #8E7284; font-size: 15px; }
+.pv-info h3 { margin: 22px 0 6px; font: 700 17px system-ui; color: #1B0A17; }
+.pv-about { margin: 0; color: #6b5a65; font-size: 15px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.pv-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pv-chips span { padding: 8px 14px; border: 1px solid #F3E1EA; border-radius: 10px; background: #fff; font-size: 14px; color: #1B0A17; box-shadow: 0 2px 8px rgba(27,10,23,.06); }
+.pv-dating .pv-actions { margin-top: 22px; padding-top: 14px; border-top: 1px solid #F3E1EA; display: flex; align-items: center; justify-content: space-between; }
+.pv-dating .likecount { color: #1B0A17; padding: 0; }
+.pv-when { font-size: 13px; color: #8E7284; }
+.pv-dating.pv-hide .pv-fabs { opacity: 1; pointer-events: auto; }

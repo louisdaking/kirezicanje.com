@@ -471,29 +471,35 @@ export function initSocial(ctx) {
     const { n, liked } = p.virtual ? { n: 0, liked: false } : likeState(p.id)
     const when = p.created_at ? fmtTime(p.created_at) : ''
 
+    const age = Number(u.age)
+    const interests = Array.isArray(u.interests) ? u.interests : String(u.interests || '').split(',').map(x => x.trim()).filter(Boolean)
+    const about = u.bio || u.about || ''
+    box.classList.add('pv-dating')
     box.innerHTML = `
-      <div class="pv-top">
-        <button class="pv-btn" onclick="closePostViewer()" aria-label="Close">←</button>
-        <div class="pv-who" onclick="openUserChoice('${esc(p.user_id)}')">
-          <span class="pv-av" ${avatarStyle(u)}></span>
-          <span class="pv-name"><b>${esc(u.full_name || '')}</b><small>${[label, when].filter(Boolean).join(' · ')}</small></span>
-        </div>
-        ${own ? `<button class="pv-btn" onclick="pvMenu()" aria-label="More">⋯</button>` : ''}
-      </div>
       <div class="pv-stage" id="pvStage">${media}</div>
+      <div class="pv-top">
+        <button class="pv-btn pv-back" onclick="closePostViewer()" aria-label="Back"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <span class="pv-counter">${pv.list.length > 1 ? (pv.i + 1) + ' / ' + pv.list.length : ''}</span>
+        ${own ? `<button class="pv-btn pv-more" onclick="pvMenu()" aria-label="More">⋯</button>` : ''}
+      </div>
       ${isVideo(p) ? '' : `<div class="pv-zoom" aria-label="Image zoom controls">
         <button type="button" onclick="kcViewerZoom(-.5)" aria-label="Zoom out">−</button>
         <button type="button" onclick="kcViewerZoom(.5)" aria-label="Zoom in">+</button>
       </div>`}
       ${pv.list.length > 1 && pv.i > 0 ? `<button class="pv-arrow l" onclick="pvNav(-1)" aria-label="Previous">‹</button>` : ''}
       ${pv.list.length > 1 && pv.i < pv.list.length - 1 ? `<button class="pv-arrow r" onclick="pvNav(1)" aria-label="Next">›</button>` : ''}
-      <div class="pv-bottom">
-        ${p.caption ? `<p class="pv-caption">${esc(p.caption)}</p>` : ''}
-        <div class="pv-actions">
-          ${p.virtual ? '' : `<button class="likebtn ${liked ? 'liked' : ''}" data-post="${esc(p.id)}" onclick="toggleLike('${esc(p.id)}')" aria-label="Like"></button>
-          <button class="likecount" data-post="${esc(p.id)}" onclick="showLikers('${esc(p.id)}')">${n} ${n === 1 ? 'like' : 'likes'}</button>`}
-          <span class="pv-counter">${pv.list.length > 1 ? (pv.i + 1) + ' / ' + pv.list.length : ''}</span>
-        </div>
+      <div class="pv-fabs">
+        <button class="pv-fab skip" onclick="${pv.i < pv.list.length - 1 ? 'pvNav(1)' : 'closePostViewer()'}" aria-label="Next"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" stroke="#3DCB4E" stroke-width="3.2" stroke-linecap="round"/></svg></button>
+        ${p.virtual ? '' : `<button class="pv-fab likebtn ${liked ? 'liked' : ''}" data-post="${esc(p.id)}" onclick="toggleLike('${esc(p.id)}')" aria-label="Like"></button>`}
+        <button class="pv-fab star" onclick="openUserChoice('${esc(p.user_id)}')" aria-label="Profile"><svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path fill="#1E90FF" d="M12 2.6l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.4l-5.9 3.3 1.3-6.6L2.5 9.5l6.6-.8z"/></svg></button>
+      </div>
+      <div class="pv-info">
+        <div class="pv-nameline" onclick="openUserChoice('${esc(p.user_id)}')"><h2>${esc(u.full_name || '')}${Number.isFinite(age) && age > 0 ? ', ' + age : ''}</h2><span class="pv-avs" ${avatarStyle(u)}></span></div>
+        ${u.address ? `<p class="pv-loc"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" d="M12 21s-7-6.2-7-11.2A7 7 0 0 1 19 9.8C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.8" r="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>${esc(u.address)}</p>` : ''}
+        ${about ? `<h3>About</h3><p class="pv-about">${esc(about)}</p>` : ''}
+        ${p.caption ? `<h3>${label || 'Post'}</h3><p class="pv-about">${esc(p.caption)}</p>` : ''}
+        ${interests.length ? `<h3>Interests</h3><div class="pv-chips">${interests.map(i => `<span>${esc(i)}</span>`).join('')}</div>` : ''}
+        ${p.virtual ? '' : `<div class="pv-actions"><button class="likecount" data-post="${esc(p.id)}" onclick="showLikers('${esc(p.id)}')">${n} ${n === 1 ? 'like' : 'likes'}</button><span class="pv-when">${[label, when].filter(Boolean).join(' · ')}</span></div>`}
       </div>`
 
     const v = box.querySelector('video')
@@ -605,7 +611,7 @@ export function initSocial(ctx) {
           setViewerZoom(pv.zoom > 1 ? 1 : 2.5, 0, 0)
         } else {
           pv.lastTap = now
-          box.classList.toggle('pv-hide')
+          // (dating layout keeps the back button visible)
         }
       }
     })

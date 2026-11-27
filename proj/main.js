@@ -72,13 +72,14 @@ async function flushOutbox() {
       const { tries, ...row } = it
       // a message that waited a long time keeps the time it was written; a fresh one gets the server time
       if (Date.now() - new Date(it.created_at).getTime() < 30000) delete row.created_at
-      const { error } = await supabase.from('message').insert([row])
+      const { data: savedRows, error } = await supabase.from('message').insert([row]).select()
       if (error && error.code !== '23505') {
         if (isNetworkError(error)) break                          // no internet: it stays, with the clock 🕓
         console.error('[kirezi] message not sent', error)
         if (outbox.bump(it.client_id) >= 8) { outbox.remove(it.client_id); showmessage('Message yanse kuza. Ongera uyandike.'); sentAny = true; continue }
         break
       }
+      try { window.__kcSentOk?.(it.client_id, savedRows && savedRows[0]) } catch (e) { console.warn('[kirezi] sent hook', e) }   // the 🕓 bubble becomes ✓ in place
       outbox.remove(it.client_id); sentAny = true
       if (!error) notifyServer(supabase, { type: 'message', to: row.receiver_id, client_id: row.client_id })   // phone notification for the other person
     }
@@ -1523,8 +1524,16 @@ async function checkiflog() {
           document.getElementById('micBtn').classList.add('recording')
           document.getElementById('divFor').classList.add('rec')
         }
-        // messages we already know are shown at once
+        // messages we already know are shown at once (from the chats list in memory if this chat was never opened)
+        if (!msgCache[value] && convo.messages) {
+          const known = convo.messages.filter(m => (m.sender_id === me && m.receiver_id === value) || (m.sender_id === value && m.receiver_id === me))
+          known.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+          if (known.length) msgCache[value] = known
+        }
         if (msgCache[value]) paintMessages(msgCache[value])
+        renderPending(true)
+        // opened = read: the red number goes away at once, the server is told in the background
+        if (document.visibilityState === 'visible') { localMarkRead(value); markRead(value) }
       }
 
       // 2) fetch the latest messages quietly in the background
@@ -1683,6 +1692,7 @@ async function checkiflog() {
       document.getElementById('inbox').dataset.chat = ''
       document.getElementById('wordsTo')?.blur()
       document.body.classList.remove('kc-chat-open')
+      if (convo.messages) { setBadge(unreadTotal()); renderConvos() }   // the list is right the moment you are back
       const url = new URL(location.href)
       url.searchParams.delete('chat')
       history.replaceState(history.state, '', url)
@@ -1826,6 +1836,32 @@ async function checkiflog() {
     }
     window.openuser = openuser
 
+    // my queued message reached the server: the bubble on screen turns 🕓 → ✓ in place (no reload, no flicker)
+    window.__kcSentOk = (clientId, saved) => {
+      const el = document.querySelector(`[data-ptext="${clientId}"]`)
+      if (saved) {
+        const other = saved.receiver_id
+        const list = msgCache[other] || (msgCache[other] = [])
+        if (!list.some(x => x.id === saved.id)) list.push(saved)
+        mergeIntoConvo([saved])
+        if (el) {
+          el.dataset.k = msgKey(saved)
+          delete el.dataset.ptext
+          const tk = el.querySelector('.tick')
+          if (tk) tk.textContent = '✓'
+        }
+      }
+      if (listVisible()) renderConvos()
+    }
+    // a message arrived (or was echoed) in the open chat: add just that one bubble
+    window.__kcChatIncoming = (m, other) => {
+      const list = msgCache[other] || (msgCache[other] = [])
+      if (!list.some(x => x.id === m.id)) list.push(m)
+      mergeIntoConvo([m])
+      paintMessages(list)
+      if (m.sender_id === other && document.visibilityState === 'visible') { localMarkRead(other); markRead(other) }
+    }
+
     function openm(value) {
       const chatParam = new URLSearchParams(location.search).get('chat')
       if (initialPage !== 'messages' || chatParam !== value) {
@@ -1862,7 +1898,7 @@ async function checkiflog() {
       const hooks = {
         chatOpenWith: (id) => { const i = document.getElementById('inbox'); return !!i && i.style.display === 'flex' && i.dataset.chat === id },
         currentChat: () => { const i = document.getElementById('inbox'); return i && i.style.display === 'flex' ? i.dataset.chat : null },
-        openChat: (id) => openinbox(id),
+        openChat: () => {},   // ticks are updated in myMessageRead (no reload)
         // a new message came in: the chats list changes at once (new line on top, red number, preview)
         incoming: (m) => {
           if (convo.messages) { mergeIntoConvo([m]); setBadge(unreadTotal()) }
@@ -1870,15 +1906,17 @@ async function checkiflog() {
         },
         // the other person read my messages: the ticks change at once
         myMessageRead: (m) => {
+          // mark_read touches many rows but only one event is delivered: everything of mine up to it is read
+          const markUp = (arr) => (arr || []).forEach(x => { if (x.sender_id === me && x.receiver_id === m.receiver_id && x.read_at === null && new Date(x.created_at) <= new Date(m.read_at)) x.read_at = m.read_at })
+          markUp(convo.messages); markUp(msgCache[m.receiver_id])
           if (convo.messages) mergeIntoConvo([m])
           if (visible('messenger') && convo.messages) renderConvos()
           const c = hooks.currentChat()
-          if (c && c === m.receiver_id) openinbox(c)
+          if (c && c === m.receiver_id) paintMessages(msgCache[c] || [])
         },
         refreshList: () => { if (visible('messenger')) { if (convo.messages) renderConvos(); else onpenmessages(true) } },
         afterFlush: () => {
-          const c = hooks.currentChat()
-          if (c) openinbox(c); else hooks.refreshList()
+          hooks.refreshList()
           refreshBadge()
         },
         // photos / videos / voice / files that were waiting have been sent
@@ -2207,8 +2245,8 @@ function listenMessages(value) {
           const inboxOpen = inbox && inbox.style.display === 'flex'
 
           // Refresh the conversation
-          if (inboxOpen) {
-            openinbox(value)
+          if (inboxOpen && inbox.dataset.chat === value) {
+            window.__kcChatIncoming?.(msg, value)
           }
         }
       }

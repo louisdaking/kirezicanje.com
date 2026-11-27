@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v21'
+const VERSION = 'kc-v22'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'

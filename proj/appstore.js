@@ -3,7 +3,16 @@
 //  downloads counter, rating, reviews, helpful votes, comments
 //  Everything goes through Supabase functions (see 6_appstore_setup.sql)
 // =====================================================================
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+const SB_URLS = [
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm',
+  'https://esm.sh/@supabase/supabase-js@2',
+  'https://unpkg.com/@supabase/supabase-js@2/dist/module/index.js?module'
+]
+let createClient
+for (const url of SB_URLS) {
+  try { ({ createClient } = await import(url)); break } catch (error) { console.warn('[kirezi] could not load Supabase from', url, error) }
+}
+if (!createClient) throw new Error('Could not load the Supabase library from any source')
 
 const SUPABASE_URL = 'https://sdzdfzhmomfocsvlddli.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNkemRmemhtb21mb2NzdmxkZGxpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkyNDE4OTQsImV4cCI6MjA4NDgxNzg5NH0.vk0KP5FZwesUqm86MgHep3VZCClIgIGEwyU_2Y0L8X4'

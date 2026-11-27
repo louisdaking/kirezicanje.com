@@ -61,7 +61,7 @@ async function start() {
   await import('./glow.js').catch(error => console.warn('[kirezi] glow effects failed', error))
 }
 
-function showLoadError() {
+function showLoadError(error) {
   if (document.getElementById('kcLoadError')) return
   const box = document.createElement('div')
   box.id = 'kcLoadError'
@@ -72,11 +72,15 @@ function showLoadError() {
   btn.style.cssText = 'padding:12px 28px;border:0;border-radius:999px;background:linear-gradient(135deg,#FF2E93,#FF7A59);color:#fff;font:800 16px system-ui,sans-serif'
   btn.onclick = () => { window.kcClearPageCache?.(); location.reload() }
   box.appendChild(btn)
+  const detail = document.createElement('small')
+  detail.style.cssText = 'max-width:320px;opacity:.6;font:12px monospace;word-break:break-word'
+  detail.textContent = String(error && error.message || error || '')
+  box.appendChild(detail)
   document.body.appendChild(box)
 }
 
 start().catch(error => {
   console.error('[kirezi] app page failed to start', error)
   window.kcClearPageCache?.()
-  showLoadError()
+  showLoadError(error)
 })

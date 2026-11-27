@@ -75,20 +75,6 @@ function like(id, x, y) {
   const btn = document.querySelector(`.likebtn[data-post="${CSS.escape(id)}"]`)
   if (btn && !btn.classList.contains('liked') && typeof window.toggleLike === 'function') window.toggleLike(id)
 }
-// double tap inside the full-screen viewer (the single tap keeps doing what it did)
-let vt = 0
-document.addEventListener('click', (e) => {
-  const stage = e.target.closest && e.target.closest('.pv-stage')
-  if (!stage || e.target.closest('button')) return
-  const now = Date.now()
-  if (now - vt < DOUBLE_MS) {
-    vt = 0
-    bigHeart(e.clientX, e.clientY)
-    const btn = document.querySelector('#pviewer .likebtn')
-    if (btn && !btn.classList.contains('liked')) btn.click()
-  } else vt = now
-}, true)
-
 // ---------- 3. little hearts when a like button turns on ----------
 const watchLikes = new MutationObserver((list) => {
   for (const m of list) {

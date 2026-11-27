@@ -19,6 +19,7 @@ const profileCache = {}   // user id -> profile row (so a chat header can be dra
 let watcher = null, watcherUser = null, watcherHooks = null, badgeTimer = null, flushing = false
 let onBackOnlineHandler = null
 let openUrlHandler = null
+let welcomeAfterLogin = false
 if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.type === 'kc-open' && openUrlHandler) openUrlHandler(e.data.url) })
 const pendingReads = new Set()
 
@@ -291,6 +292,30 @@ function showmessage(text) {
   clearTimeout(notifTimer)
   notifTimer = setTimeout(() => hideHTML('animation'), 4000)
 }
+function closeWelcome() {
+  const welcome = document.getElementById('kcWelcome')
+  if (!welcome) return
+  welcome.hidden = true
+  welcome.classList.remove('open')
+  welcome.setAttribute('aria-hidden', 'true')
+  document.body.classList.remove('kc-welcome-open')
+}
+window.closeWelcome = closeWelcome
+function showWelcome(name) {
+  const welcome = document.getElementById('kcWelcome')
+  if (!welcome) return
+  document.getElementById('kcWelcomeName').textContent = name ? `Welcome, ${name}` : 'Welcome'
+  welcome.hidden = false
+  welcome.classList.add('open')
+  welcome.setAttribute('aria-hidden', 'false')
+  document.body.classList.add('kc-welcome-open')
+}
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && document.getElementById('kcWelcome')?.classList.contains('open')) closeWelcome()
+})
+document.getElementById('kcWelcome')?.addEventListener('click', (event) => {
+  if (event.target === event.currentTarget) closeWelcome()
+})
 
 // ---------- developer errors go to the console only (users never see them) ----------
 window.addEventListener('error', (e) => { console.error('[kirezi]', e.message, e.error) })
@@ -417,13 +442,6 @@ window.addEventListener('kc-fresh', (e) => {
 })
 // somebody is already logged in: show the app at once, not the login page
 if (savedSession()) document.documentElement.classList.add('kc-has-session')
-
-function waitAsec(values) {
-  showHTML('loading')
-  if (values) {
-    hideHTML('loading')
-  }
-}
 
 // ---------- helpers for voice messages ----------
 function vpBars(seedStr) {
@@ -939,15 +957,16 @@ async function checkiflog() {
   if (!data) data = { session: null }
   document.documentElement.classList.add('kc-auth-ready')
   if (error) {
-    waitAsec('cancel')
     softError(error);
   } else if (data.session) {
-    waitAsec('cancel')
     document.documentElement.classList.add('kc-has-session')
     hideHTML('brand_couple')
     hideHTML('loginpage')
     hideHTML('cre')
-    showmessage("MURAHAWE IKAZE " + (data.session.user.user_metadata?.full_name || ''));
+    if (welcomeAfterLogin) {
+      welcomeAfterLogin = false
+      showWelcome(data.session.user.user_metadata?.full_name || '')
+    }
 
 
     // =====================================================
@@ -956,7 +975,7 @@ async function checkiflog() {
 
     // start the new features (search, gallery, viewer, chooser, likes)
     initSocial({
-      supabase, me: data.session.user.id, profileCache, esc, fmtTime, showmessage, waitAsec,
+      supabase, me: data.session.user.id, profileCache, esc, fmtTime, showmessage,
       getTalkedMap, viewedSet, setNav, openStatusViewer
     })
     window.search = window.openSearch          // the search button in the bottom bar
@@ -1113,7 +1132,7 @@ async function checkiflog() {
 
       stale.v = false
       const { data: profs, error: pe } = await supabase.from('profiles').select('*')
-      if (pe) { waitAsec('x'); softError(pe); return }
+      if (pe) { softError(pe); return }
       profs.forEach(p => { profileCache[p.id] = p })
 
       const { data: posts, error } = await supabase
@@ -1197,7 +1216,6 @@ async function checkiflog() {
         .eq('kind', 'status')
         .gte('created_at', since)
         .order('created_at', { ascending: true })     // oldest first, like WhatsApp
-      waitAsec('x')
       if (error) { softError(error); return }
       window.kcRemember(posts)
 
@@ -1360,7 +1378,6 @@ async function checkiflog() {
       if (had) renderConvos()                      // the list appears at once from memory
       else setTimeout(() => { if (!convo.messages) document.getElementById('selectuser').innerHTML = skelRows(5) }, 150)
       const ok = await loadConvos()                // and is refreshed quietly
-      waitAsec('j')
       if (ok) renderConvos()
       refreshBadge()
     }
@@ -1703,7 +1720,7 @@ async function checkiflog() {
       <div class="profile-cover">
         <div class="profile-cover-slides" aria-hidden="true"></div>
         <span class="profile-cover-shade"></span>
-        <button class="profil" type="button" style="background-image:url('${esc(u.profile_pic || '')}')" aria-label="View ${esc(u.full_name || 'user')}'s photos" onclick="openGallery('${esc(u.id)}')"></button>
+        <button class="profil" type="button" aria-label="View ${esc(u.full_name || 'user')}'s photos" onclick="openGallery('${esc(u.id)}')"></button>
       </div>
       <section class="profile-card">
         <div class="profile-intro">
@@ -1732,6 +1749,12 @@ async function checkiflog() {
     </main>`
       const coverSlides = document.querySelector('#userJournal .profile-cover-slides')
       if (u.profile_pic) {
+        const profilePicture = document.createElement('img')
+        profilePicture.src = u.profile_pic
+        profilePicture.alt = ''
+        profilePicture.decoding = 'async'
+        profilePicture.loading = 'eager'
+        document.querySelector('#userJournal .profile-cover .profil').appendChild(profilePicture)
         const avatarSlide = document.createElement('img')
         avatarSlide.className = 'profile-cover-slide active'
         avatarSlide.src = u.profile_pic
@@ -1805,14 +1828,10 @@ async function checkiflog() {
     async function logout() {
       await disablePush(supabase)
       const { data: logout, error: err } = await supabase.auth.signOut()
-      waitAsec()
-
       if (err) {
-        waitAsec('canc')
         softError(err, 'logout failed')
         return
       }
-      waitAsec('canc')
       clearOfflineCache()
       showmessage('logout successfull :')
       showHTML('loginpage')
@@ -1923,26 +1942,30 @@ async function checkiflog() {
     else peek()
 
   } else {
-    waitAsec('cancel')
     document.documentElement.classList.remove('kc-has-session')
+    window.kcClearPageCache?.()
     stopWatcher()
     if (window.__kcCalls) { window.__kcCalls.api.destroy(); window.__kcCalls = null }
-    showmessage("MURAHAWE IKAZE MURI KIREZI CANJE");
     hideHTML('allofthem')
     hideHTML('messenger')
+    hideHTML('userJournal')
+    hideHTML('searchPage')
+    hideHTML('navigation')
+    showHTML('loginpage')
+    showHTML('cre')
+    showHTML('brand_couple')
+    const statusPage = document.getElementById('statusPage')
+    if (statusPage) statusPage.style.transform = 'scale(0)'
 
     //function yi buto ya login
     async function login() {
-      waitAsec()
       let email = `${getidSvalue('email')}@gmail.com`
       let password = getidSvalue('password')
       if (email == '@gmail.com' || !password) {
         if (email == '@gmail.com') {
-          waitAsec('cancel')
           showmessage('shiramwo nimero ya terefone');
         }
         else if (!password) {
-          waitAsec('cancel')
           showmessage('nta password wanditse');
         }
         return
@@ -1951,13 +1974,11 @@ async function checkiflog() {
       const { error, data } = await supabase.auth.signInWithPassword({ email: email, password: password })
 
       if (error) {
-        waitAsec('cancel')
         authError(error)
         return
       }
 
-      waitAsec('cancel')
-      showmessage('VYAKUNZE ✅✅✅')
+      welcomeAfterLogin = !!data?.session
       hideHTML('loginpage')
       showHTML('navigation')
       hideHTML('cre')
@@ -1981,7 +2002,6 @@ async function checkiflog() {
     window.create = create
 
     async function createACOUT() {
-      waitAsec()
       try {
         const phone = getidSvalue('email').trim();
         const email = `${phone}@gmail.com`;
@@ -1993,7 +2013,6 @@ async function checkiflog() {
         const file = document.getElementById('profilepic').files[0];
 
         if (email == '@gmail.com' || !password || !full_name || !sex || !address || !age || !file) {
-          waitAsec('cancel');
           if (!file) {
             showmessage('ntiwacaguye photo de profire')
           }
@@ -2015,18 +2034,15 @@ async function checkiflog() {
 
         // ----- checks -----
         if (!/^\d+$/.test(phone) || phone.length < PHONE_MIN || phone.length > PHONE_MAX) {
-          waitAsec('cancel')
           showmessage(`nimero ya terefone idakwiza ibiharuro ${PHONE_MIN} ntiyemewe`)
           return
         }
         const ageNum = Number(age)
         if (!Number.isInteger(ageNum) || ageNum < MIN_AGE || ageNum > MAX_AGE) {
-          waitAsec('cancel')
           showmessage(`udakwiza imyaka  ${MIN_AGE} canke urenza imyaka ${MAX_AGE} ntiwemerewe`)
           return
         }
         if (password.length < PASS_MIN) {
-          waitAsec('cancel')
           showmessage(`password igomba kuba ikwiza ibintu  ${PASS_MIN}`)
           return
         }
@@ -2049,7 +2065,6 @@ async function checkiflog() {
         if (error) {
           console.log(error)
           softError(error)
-          waitAsec('cancel')
           return
         }
         if (!data.user) {
@@ -2058,7 +2073,6 @@ async function checkiflog() {
         const user = data.user;
 
         if (!data.session) {
-          waitAsec('cancel');
           showmessage('konte yakozwe. comfirmation email.');
         }
 
@@ -2094,8 +2108,7 @@ async function checkiflog() {
         }])
         if (picPostError) console.log('profile picture post:', picPostError.message)
 
-        waitAsec('cancel')
-        showmessage('wiyandikishije vyakunze , kaze ' + full_name)
+        showmessage('Konti yawe yakozwe neza.')
 
         hideHTML('loginpage')
         showHTML('navigation')
@@ -2105,7 +2118,6 @@ async function checkiflog() {
 
       } catch (e) {
         authError(e)
-        waitAsec('cancel')
       }
     }
     window.createACOUT = createACOUT

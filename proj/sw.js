@@ -8,7 +8,7 @@ try { importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw') } 
 
 
 
-const VERSION = 'kc-v16'
+const VERSION = 'kc-v18'
 const SHELL_CACHE = VERSION + '-shell'
 const IMG_CACHE = VERSION + '-img'
 const LIB_CACHE = VERSION + '-lib'
@@ -23,6 +23,7 @@ const SHELL = [
   'search.html',
   'shared-shell.html',
   'page-loader.js',
+  'page-cache.js',
   'install.js',
   'app.html',
   'main.js',
@@ -75,25 +76,18 @@ function withTimeout(promise, ms) {
   })
 }
 
-// network first (so updates arrive), the saved copy when there is no internet
-async function networkFirst(req, cacheName, ms) {
-  const cache = await caches.open(cacheName)
-  try {
-    const res = await withTimeout(fetch(req), ms)
-    if (res && res.ok) cache.put(req, res.clone())
-    return res
-  } catch (e) {
-    const hit = await cache.match(req, { ignoreSearch: true })
-    if (hit) return hit
-    throw e
-  }
-}
-
 // saved copy at once, refreshed quietly in the background
-async function staleWhileRevalidate(req, cacheName) {
-  const cache = await caches.open(cacheName)
+async function staleWhileRevalidate(req, cacheName, event) {
+  const cachePromise = caches.open(cacheName)
+  const refresh = cachePromise
+    .then(cache => fetch(req).then(res => {
+      if (res && (res.ok || res.type === 'opaque')) return cache.put(req, res.clone()).then(() => res)
+      return res
+    }))
+    .catch(() => null)
+  event.waitUntil(refresh)
+  const cache = await cachePromise
   const hit = await cache.match(req)
-  const refresh = fetch(req).then(res => { if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone()); return res }).catch(() => null)
   return hit || (await refresh) || Response.error()
 }
 
@@ -133,27 +127,36 @@ self.addEventListener('fetch', (event) => {
 
   // opening the app
   if (req.mode === 'navigate') {
-    event.respondWith((async () => {
-      try { return await withTimeout(fetch(req), 4000) }
-      catch {
-        const cache = await caches.open(SHELL_CACHE)
-        const page = await cache.match(req, { ignoreSearch: true })
-        if (page) return page
-        return (await cache.match('index.html')) || (await cache.match('./')) || Response.error()
+    const refresh = withTimeout(fetch(req), 4000).then(response => {
+      if (response && response.ok && response.type === 'basic') {
+        const url = new URL(req.url)
+        return caches.open(SHELL_CACHE)
+          .then(cache => cache.put(url.origin + url.pathname, response.clone()))
+          .then(() => response)
       }
+      return response
+    }).catch(() => null)
+    event.waitUntil(refresh)
+    event.respondWith((async () => {
+      const cache = await caches.open(SHELL_CACHE)
+      const page = await cache.match(req, { ignoreSearch: true })
+      if (page) return page
+
+      const response = await refresh
+      if (response) return response
+      return (await cache.match('index.html')) || (await cache.match('./')) || Response.error()
     })())
     return
   }
 
   if (url.origin === self.location.origin) {
-    const isCode = /\.(js|css|html|json)$/.test(url.pathname)
-    event.respondWith(isCode ? networkFirst(req, SHELL_CACHE, 3500) : staleWhileRevalidate(req, SHELL_CACHE))
+    event.respondWith(staleWhileRevalidate(req, SHELL_CACHE, event))
     return
   }
 
   if (url.hostname.endsWith('.supabase.co')) { event.respondWith(storageImage(req)); return }
 
   if (url.hostname === 'cdn.jsdelivr.net' || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com') {
-    event.respondWith(staleWhileRevalidate(req, LIB_CACHE))
+    event.respondWith(staleWhileRevalidate(req, LIB_CACHE, event))
   }
 })

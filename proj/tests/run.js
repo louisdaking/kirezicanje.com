@@ -2,12 +2,62 @@
 // node tests/run.js   - no packages, no network: Supabase and the push services are simulated.
 const assert = require('assert')
 const crypto = require('crypto')
+const fs = require('fs')
+const vm = require('vm')
 const wp = require('../api/_lib/webpush')
 
 let passed = 0
 const test = async (name, fn) => { try { await fn(); passed++; console.log('  ok  ' + name) } catch (e) { console.error('FAIL  ' + name + '\n      ' + (e.stack || e)); process.exitCode = 1 } }
 const u = (s) => Buffer.from(s, 'base64url')
 const hmac = (k, d) => crypto.createHmac('sha256', k).update(d).digest()
+
+function runPageCache({ authenticated, snapshot = null, authUserId = 'user-1' } = {}) {
+  const storage = {}
+  const authStorage = { [`sb-test-auth-token`]: JSON.stringify({ user: { id: authUserId } }) }
+  Object.defineProperties(authStorage, {
+    length: { get() { return Object.keys(this).length } },
+    key: { value(index) { return Object.keys(this)[index] || null } },
+    getItem: { value(key) { return Object.hasOwn(this, key) ? this[key] : null } }
+  })
+  Object.defineProperties(storage, {
+    getItem: { value(key) { return Object.hasOwn(this, key) ? this[key] : null } },
+    setItem: { value(key, value) { this[key] = String(value) } },
+    removeItem: { value(key) { delete this[key] } }
+  })
+  const shell = {
+    innerHTML: '',
+    dataset: {},
+    querySelectorAll: () => [],
+    cloneNode() {
+      snapshotWelcome = {
+        hidden: false,
+        open: true,
+        ariaHidden: 'false',
+        classList: { remove(name) { if (name === 'open') snapshotWelcome.open = false } },
+        setAttribute(name, value) { if (name === 'aria-hidden') snapshotWelcome.ariaHidden = value }
+      }
+      return { innerHTML: this.innerHTML, querySelector: () => snapshotWelcome }
+    }
+  }
+  let snapshotWelcome = null
+  const handlers = {}
+  const sandbox = {
+    URL,
+    location: { href: 'https://kirezicanje.com/messages.html?chat=ana', pathname: '/messages.html', search: '?chat=ana' },
+    sessionStorage: storage,
+    localStorage: authStorage,
+    document: {
+      getElementById: () => shell,
+      documentElement: { classList: { contains: () => authenticated } }
+    },
+    window: { addEventListener: (name, handler) => { handlers[name] = handler }, scrollY: 0, scrollTo() {} },
+    console: { warn() {} }
+  }
+  const key = 'kc-page-snapshot:v2:/messages.html?chat=ana'
+  if (snapshot) storage[key] = typeof snapshot === 'string' ? snapshot : JSON.stringify(snapshot)
+  vm.runInNewContext(fs.readFileSync(require.resolve('../page-cache.js'), 'utf8'), sandbox)
+  return { shell, handlers, storage, key, window: sandbox.window, snapshotWelcome: () => snapshotWelcome }
+}
 
 // a phone: makes its own keys and can decrypt what the server sends (written separately from the server code, straight from RFC 8291 section 3.4)
 function makePhone() {
@@ -139,6 +189,36 @@ const N = (token, body) => call(notify, { token, body })
     assert.strictEqual(messagePolicy.inboxPolicyError('visit example.com'), 'Links are not allowed in messages.')
     assert.strictEqual(messagePolicy.inboxPolicyError('https://example.com'), 'Links are not allowed in messages.')
     assert.strictEqual(messagePolicy.inboxPolicyError('www.example.com'), 'Links are not allowed in messages.')
+  })
+  console.log('page snapshots')
+  await test('restores a visited page immediately and refreshes its snapshot on navigation', () => {
+    const cache = runPageCache({ authenticated: true, snapshot: { userId: 'user-1', html: '<main>last visit</main>' } })
+    assert.strictEqual(cache.shell.innerHTML, '<main>last visit</main>')
+    cache.shell.innerHTML = '<main>latest visit</main>'
+    cache.handlers.pagehide()
+    assert.strictEqual(JSON.parse(cache.storage[cache.key]).html, '<main>latest visit</main>')
+    assert.strictEqual(JSON.parse(cache.storage[cache.key]).userId, 'user-1')
+    assert.strictEqual(cache.snapshotWelcome().hidden, true)
+    assert.strictEqual(cache.snapshotWelcome().open, false)
+    assert.strictEqual(cache.snapshotWelcome().ariaHidden, 'true')
+    cache.window.kcClearPageCache()
+    assert.strictEqual(cache.storage[cache.key], undefined)
+  })
+  await test('does not save unauthenticated page content', () => {
+    const cache = runPageCache({ authenticated: false })
+    cache.shell.innerHTML = '<main>private content</main>'
+    cache.handlers.pagehide()
+    assert.strictEqual(cache.storage[cache.key], undefined)
+  })
+  await test('does not restore a snapshot owned by another signed-in user', () => {
+    const cache = runPageCache({ authenticated: true, authUserId: 'user-2', snapshot: { userId: 'user-1', html: '<main>private</main>' } })
+    assert.strictEqual(cache.shell.innerHTML, '')
+    assert.strictEqual(cache.storage[cache.key], undefined)
+  })
+  await test('does not restore a private page snapshot without a signed-in user', () => {
+    const cache = runPageCache({ authenticated: true, authUserId: null, snapshot: { userId: 'user-1', html: '<main>private</main>' } })
+    assert.strictEqual(cache.shell.innerHTML, '')
+    assert.strictEqual(cache.storage[cache.key], undefined)
   })
 
   console.log('crypto')

@@ -352,7 +352,16 @@
     <p id="not_mess">notification</p>
   </div>
 
-  <button class="loading" id="loading">•</button>
+  <div class="kc-welcome" id="kcWelcome" hidden aria-hidden="true">
+    <section class="kc-welcome-card" role="dialog" aria-modal="true" aria-labelledby="kcWelcomeTitle">
+      <div class="kc-welcome-heart" aria-hidden="true">♥</div>
+      <p class="kc-welcome-eyebrow">A LITTLE MORE LOVE, EVERY DAY</p>
+      <h2 id="kcWelcomeTitle">Welcome to KIREZI CANJE</h2>
+      <p class="kc-welcome-copy"><span id="kcWelcomeName"></span> — your next meaningful connection could start right here.</p>
+      <button class="kc-welcome-continue" type="button" onclick="closeWelcome()">Let’s explore</button>
+      <button class="kc-welcome-close" type="button" aria-label="Close welcome message" onclick="closeWelcome()">✕</button>
+    </section>
+  </div>
 
   <div class="brand_couple" id="brand_couple"><h1 style="
     display: flex;

@@ -33,7 +33,23 @@ html,
 body {
     margin: 0;
     min-height: 100%;
+    background-color: #1B0A17;
 }
+
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-old(root) {
+    animation: kcPageOut .12s ease-in both;
+}
+
+::view-transition-new(root) {
+    animation: kcPageIn .18s ease-out both;
+}
+
+@keyframes kcPageOut { to { opacity: .88; } }
+@keyframes kcPageIn { from { opacity: .88; } }
 
 body {
     font-family: var(--body);
@@ -104,34 +120,85 @@ button:active { transform: scale(.94); }
     to   { opacity: 1; transform: translate(-50%, 0%); }
 }
 
-/* ---------- page loader (small, centered) ---------- */
-.loading {
+.kc-welcome {
     position: fixed;
-    z-index: 1000000000;
-    top: 50%;
-    left: 50%;
-    width: 56px;
-    height: 56px;
-    margin: -28px 0 0 -28px;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-    background: rgba(27, 10, 23, .88);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
-    color: transparent;
-    font-size: 0;
+    inset: 0;
+    z-index: 1000000001;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(27, 10, 23, .72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 }
-.loading::after {
-    content: "";
-    width: 26px;
-    height: 26px;
-    border: 3px solid rgba(255, 255, 255, .22);
-    border-top-color: var(--magenta);
-    border-radius: 50%;
-    animation: spin .8s linear infinite;
+.kc-welcome.open { animation: kcWelcomeFade .2s ease-out both; }
+.kc-welcome-card {
+    position: relative;
+    width: min(100%, 390px);
+    padding: 36px 26px 26px;
+    border: 1px solid rgba(255, 255, 255, .76);
+    border-radius: 28px;
+    background: linear-gradient(145deg, #fff, #fff2f7);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, .32);
+    text-align: center;
+    animation: kcWelcomePop .32s cubic-bezier(.22, .8, .24, 1) both;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+.kc-welcome-heart {
+    display: grid;
+    place-items: center;
+    width: 58px;
+    height: 58px;
+    margin: 0 auto 15px;
+    border-radius: 50%;
+    background: var(--brand);
+    color: #fff;
+    font-size: 30px;
+    box-shadow: 0 10px 24px rgba(255, 46, 147, .3);
+}
+.kc-welcome-eyebrow {
+    margin: 0 0 8px;
+    color: var(--magenta);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+}
+.kc-welcome-card h2 {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--display);
+    font-size: clamp(24px, 6vw, 30px);
+    line-height: 1.12;
+}
+.kc-welcome-copy {
+    margin: 12px 0 22px;
+    color: var(--mist);
+    font-size: 15px;
+    line-height: 1.55;
+}
+.kc-welcome-continue {
+    width: 100%;
+    min-height: 48px;
+    border-radius: 24px;
+    background: var(--brand);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 800;
+    box-shadow: 0 8px 20px rgba(255, 46, 147, .26);
+}
+.kc-welcome-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(27, 10, 23, .06);
+    color: var(--mist);
+    font-size: 16px;
+}
+body.kc-welcome-open { overflow: hidden; }
+@keyframes kcWelcomeFade { from { opacity: 0; } }
+@keyframes kcWelcomePop { from { opacity: 0; transform: translateY(14px) scale(.97); } }
 
 /* =========================================================
    LOGIN / SIGN UP
@@ -770,12 +837,14 @@ body:not(.kc-auth-ready) {
     position: relative;
     height: clamp(220px, 36vw, 350px);
     background-color: var(--plum);
-    overflow: hidden;
+    overflow: visible;
     border-radius: 0 0 28px 28px;
 }
 .profile-cover-slides {
     position: absolute;
     inset: 0;
+    overflow: hidden;
+    border-radius: inherit;
 }
 .profile-cover-slide {
     position: absolute;
@@ -798,9 +867,11 @@ body:not(.kc-auth-ready) {
 }
 .profil {
     position: absolute;
-    z-index: 1;
+    z-index: 2;
     left: 24px;
     bottom: -48px;
+    display: block;
+    padding: 0;
     width: 128px;
     height: 128px;
     border-radius: 50%;
@@ -809,9 +880,19 @@ body:not(.kc-auth-ready) {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' fill='%23FFF1F6'/%3E%3Cg transform='translate(19 21) scale(2.4)'%3E%3Cpath fill='%23f3a6c8' d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/g%3E%3C/svg%3E");
     background-size: cover;
     background-position: center;
+    background-repeat: no-repeat;
+    aspect-ratio: 1 / 1;
+    border-radius: 50%;
     box-shadow: 0 0 0 4px var(--magenta), 0 24px 56px rgba(255, 46, 147, .38);
     cursor: pointer;
     background-color: var(--line);
+}
+.profile-cover .profil > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
 }
 .profile-card {
     position: relative;
@@ -939,7 +1020,6 @@ body:not(.kc-auth-ready) {
 
 /* =========================================================
    VOICE MESSAGE PLAYER
-   (class names avoid ".loading", which is the page loader)
    ========================================================= */
 .vp {
     display: flex;
@@ -1420,6 +1500,17 @@ body:not(.kc-auth-ready) {
     aspect-ratio: 1 / 1;
     border-radius: 50%;
 }
+.profil,
+.avatar,
+.profilepicturee,
+.sav,
+.sv-avatar,
+.pv-av,
+.rl-av,
+.pav,
+.kcAva {
+    overflow: hidden;
+}
 img.avatar,
 img.profilepicturee,
 img.profil,
@@ -1432,6 +1523,7 @@ img.kcAva {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    border-radius: 50%;
 }
 
 @media (max-width: 759px) {
@@ -1439,6 +1531,11 @@ img.kcAva {
         inset: var(--kc-visual-top, 0px) 0 auto;
         height: var(--kc-visual-height, 100vh);
         height: var(--kc-visual-height, 100dvh);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        ::view-transition-old(root),
+        ::view-transition-new(root) { animation: none; }
     }
 }
 

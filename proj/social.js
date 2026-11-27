@@ -17,7 +17,7 @@ import { notifyServer } from './push.js'                   // phone notification
 import { smartSearch, expandWords } from './smartsearch.js'      // the search brain (typos, Kirundi/French/English, filters in plain words)
 
 export function initSocial(ctx) {
-  const { supabase, me, profileCache, esc, fmtTime, showmessage, waitAsec, getTalkedMap, viewedSet } = ctx
+  const { supabase, me, profileCache, esc, fmtTime, showmessage, getTalkedMap, viewedSet } = ctx
   const $ = (id) => document.getElementById(id)
   const DAY = 24 * 60 * 60 * 1000
 
@@ -251,9 +251,7 @@ export function initSocial(ctx) {
 
   async function openUserChoice(uid) {
     if (!uid) uid = me
-    waitAsec()
     const [items] = await Promise.all([getStatusItems(uid), ensureProfile(uid)])
-    waitAsec('x')
     if (!items.length) { window.openuser(uid); return }   // no status: nothing to choose, go to the profile
 
     statusOf[uid] = items
@@ -282,7 +280,29 @@ export function initSocial(ctx) {
   // ---------------------------------------------------
   // 3. FULL SCREEN POST VIEWER
   // ---------------------------------------------------
-  const pv = { list: [], i: 0, onChange: null, down: null, holdTimer: null }
+  const pv = {
+    list: [], i: 0, onChange: null, down: null, holdTimer: null,
+    zoom: 1, x: 0, y: 0, pointers: new Map(), gesture: null, lastTap: 0, closeTimer: null
+  }
+
+  function applyViewerZoom(smooth = true) {
+    const img = $('pvStage')?.querySelector('img')
+    if (!img) return
+    const stage = $('pvStage')
+    const maxX = stage.clientWidth * (pv.zoom - 1) / 2
+    const maxY = stage.clientHeight * (pv.zoom - 1) / 2
+    pv.x = Math.max(-maxX, Math.min(maxX, pv.x))
+    pv.y = Math.max(-maxY, Math.min(maxY, pv.y))
+    img.style.transition = smooth ? '' : 'none'
+    img.style.transform = `translate3d(${pv.x}px, ${pv.y}px, 0) scale(${pv.zoom})`
+  }
+  function setViewerZoom(scale, x = pv.x, y = pv.y, smooth = true) {
+    pv.zoom = Math.max(1, Math.min(4, scale))
+    pv.x = pv.zoom === 1 ? 0 : x
+    pv.y = pv.zoom === 1 ? 0 : y
+    applyViewerZoom(smooth)
+  }
+  function viewerZoomBy(step) { setViewerZoom(pv.zoom + step) }
 
   function openPostViewer(list, index, opts) {
     if (!list || !list.length) return
@@ -292,8 +312,13 @@ export function initSocial(ctx) {
     pv.list = list.slice()
     pv.i = Math.max(0, Math.min(index || 0, pv.list.length - 1))
     pv.onChange = (opts && opts.onChange) || null
-    $('pviewer').classList.remove('pv-hide')
-    $('pviewer').style.display = 'block'
+    const box = $('pviewer')
+    clearTimeout(pv.closeTimer)
+    pv.zoom = 1; pv.x = 0; pv.y = 0; pv.lastTap = 0
+    box.classList.remove('pv-hide', 'pv-closing')
+    box.classList.add('pv-open')
+    box.style.display = 'block'
+    document.body.classList.add('kc-viewer-open')
     pvRender()
   }
   // ---------------------------------------------------
@@ -409,14 +434,26 @@ export function initSocial(ctx) {
   }
   function closePostViewer() {
     const box = $('pviewer')
+    if (box.style.display !== 'block') return
     box.querySelectorAll('video').forEach(v => v.pause())
-    box.style.display = 'none'
-    box.innerHTML = ''
+    pv.pointers.clear()
+    pv.gesture = null
+    pv.down = null
+    box.classList.remove('pv-open', 'pv-hide')
+    box.classList.add('pv-closing')
+    pv.closeTimer = setTimeout(() => {
+      if (!box.classList.contains('pv-closing')) return
+      box.style.display = 'none'
+      box.classList.remove('pv-closing')
+      box.innerHTML = ''
+      document.body.classList.remove('kc-viewer-open')
+    }, 180)
   }
   function pvNav(step) {
     const n = pv.i + step
     if (n < 0 || n >= pv.list.length) return
     pv.i = n
+    pv.zoom = 1; pv.x = 0; pv.y = 0
     pvRender()
   }
 
@@ -444,6 +481,10 @@ export function initSocial(ctx) {
         ${own ? `<button class="pv-btn" onclick="pvMenu()" aria-label="More">⋯</button>` : ''}
       </div>
       <div class="pv-stage" id="pvStage">${media}</div>
+      ${isVideo(p) ? '' : `<div class="pv-zoom" aria-label="Image zoom controls">
+        <button type="button" onclick="kcViewerZoom(-.5)" aria-label="Zoom out">−</button>
+        <button type="button" onclick="kcViewerZoom(.5)" aria-label="Zoom in">+</button>
+      </div>`}
       ${pv.list.length > 1 && pv.i > 0 ? `<button class="pv-arrow l" onclick="pvNav(-1)" aria-label="Previous">‹</button>` : ''}
       ${pv.list.length > 1 && pv.i < pv.list.length - 1 ? `<button class="pv-arrow r" onclick="pvNav(1)" aria-label="Next">›</button>` : ''}
       <div class="pv-bottom">
@@ -483,12 +524,32 @@ export function initSocial(ctx) {
     if (p && p.media_url) window.open(p.media_url, '_blank', 'noopener,noreferrer')
   }
 
-  // Swipe left/right = next/previous, swipe down = close, tap = hide controls, hold = photo actions.
+  // Swipe navigates the gallery; two fingers or a double tap zoom the image.
   ;(function attachViewerGestures() {
     const box = $('pviewer')
     if (!box) return
     box.addEventListener('pointerdown', (e) => {
-      if (!e.target.closest('.pv-stage') || e.target.tagName === 'VIDEO') { pv.down = null; return }
+      if (!e.target.closest('.pv-stage') || e.target.closest('.pv-zoom') || e.target.tagName === 'VIDEO') { pv.down = null; return }
+      if (e.pointerType === 'touch') {
+        pv.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+        if (pv.pointers.size > 1) {
+          clearTimeout(pv.holdTimer)
+          pv.down = null
+          const [a, b] = [...pv.pointers.values()]
+          pv.gesture = {
+            type: 'pinch',
+            distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+            zoom: pv.zoom
+          }
+          return
+        }
+      }
+      if (pv.zoom > 1) {
+        pv.gesture = { type: 'pan', x: e.clientX, y: e.clientY, startX: pv.x, startY: pv.y }
+        pv.down = null
+        return
+      }
+      pv.gesture = null
       pv.down = { x: e.clientX, y: e.clientY, t: e.target }
       if (e.target.tagName === 'IMG') {
         clearTimeout(pv.holdTimer)
@@ -500,10 +561,34 @@ export function initSocial(ctx) {
       }
     })
     box.addEventListener('pointermove', (e) => {
+      const pointer = pv.pointers.get(e.pointerId)
+      if (pointer) { pointer.x = e.clientX; pointer.y = e.clientY }
+      if (pv.gesture?.type === 'pinch' && pv.pointers.size > 1) {
+        const [a, b] = [...pv.pointers.values()]
+        const distance = Math.hypot(a.x - b.x, a.y - b.y)
+        setViewerZoom(pv.gesture.zoom * distance / pv.gesture.distance, pv.x, pv.y, false)
+      } else if (pv.gesture?.type === 'pan' && pv.zoom > 1) {
+        setViewerZoom(pv.zoom, pv.gesture.startX + e.clientX - pv.gesture.x, pv.gesture.startY + e.clientY - pv.gesture.y, false)
+      }
       if (!pv.down) return
       if (Math.abs(e.clientX - pv.down.x) > 12 || Math.abs(e.clientY - pv.down.y) > 12) clearTimeout(pv.holdTimer)
     })
     box.addEventListener('pointerup', (e) => {
+      if (e.pointerType === 'touch') pv.pointers.delete(e.pointerId)
+      if (pv.gesture?.type === 'pinch') {
+        const remaining = [...pv.pointers.values()][0]
+        pv.gesture = remaining && pv.zoom > 1
+          ? { type: 'pan', x: remaining.x, y: remaining.y, startX: pv.x, startY: pv.y }
+          : null
+        pv.down = null
+        return
+      }
+      if (pv.gesture?.type === 'pan' || pv.zoom > 1) {
+        pv.gesture = null
+        pv.down = null
+        return
+      }
+      pv.gesture = null
       const d = pv.down
       pv.down = null
       clearTimeout(pv.holdTimer)
@@ -512,9 +597,24 @@ export function initSocial(ctx) {
       const dx = e.clientX - d.x, dy = e.clientY - d.y
       if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy)) pvNav(dx < 0 ? 1 : -1)
       else if (dy > 110 && Math.abs(dy) > Math.abs(dx)) closePostViewer()
-      else if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && d.t.tagName === 'IMG') box.classList.toggle('pv-hide')
+      else if (Math.abs(dx) < 8 && Math.abs(dy) < 8 && d.t.tagName === 'IMG') {
+        const now = Date.now()
+        if (now - pv.lastTap < 320) {
+          pv.lastTap = 0
+          box.classList.remove('pv-hide')
+          setViewerZoom(pv.zoom > 1 ? 1 : 2.5, 0, 0)
+        } else {
+          pv.lastTap = now
+          box.classList.toggle('pv-hide')
+        }
+      }
     })
-    box.addEventListener('pointercancel', () => { pv.down = null; clearTimeout(pv.holdTimer) })
+    box.addEventListener('pointercancel', () => {
+      pv.down = null
+      pv.pointers.clear()
+      pv.gesture = null
+      clearTimeout(pv.holdTimer)
+    })
     box.addEventListener('contextmenu', (e) => {
       if (e.target.closest('.pv-stage img')) e.preventDefault()
     })
@@ -559,9 +659,7 @@ export function initSocial(ctx) {
   // change a post in Supabase. Supabase answers "no error" but changes nothing when a rule blocks
   // you, so we also check that a row really came back.
   async function updatePost(p, fields) {
-    waitAsec()
     const { data, error } = await supabase.from('posts').update(fields).eq('id', p.id).eq('user_id', me).select()
-    waitAsec('x')
     if (error) { window.softError(error, 'Not saved'); return false }
     if (!data || !data.length) {
       showmessage('Supabase did not allow this change. The "posts" table needs an UPDATE rule for the owner.')
@@ -612,7 +710,6 @@ export function initSocial(ctx) {
   async function pvDelete() {
     const p = currentOwnPost()
     if (!p) return
-    waitAsec()
     const del = () => supabase.from('posts').delete().eq('id', p.id).eq('user_id', me).select()
     let { data, error } = await del()
     if (error && (error.code === '23503' || /foreign key/i.test(error.message))) {
@@ -620,7 +717,6 @@ export function initSocial(ctx) {
       await supabase.from('post_likes').delete().eq('post_id', p.id)
       ;({ data, error } = await del())
     }
-    waitAsec('x')
     if (error) { window.softError(error, 'Not deleted'); return }
     if (!data || !data.length) {
       showmessage('Supabase did not allow this. The "posts" table needs a DELETE rule for the owner.')
@@ -799,7 +895,7 @@ export function initSocial(ctx) {
   }
 
   function buildSearchShell() {
-    $('searchPage').innerHTML = `
+    if (!$('sInput')) $('searchPage').innerHTML = `
       <div class="s-head">
         <h3>Search</h3>
         <div class="s-box">
@@ -811,6 +907,12 @@ export function initSocial(ctx) {
       </div>
       <div class="s-body" id="sBody"></div>`
     const input = $('sInput')
+    S.q = input.value
+    $('sFilters').querySelectorAll('[data-k].on').forEach(chip => {
+      S.f[chip.dataset.k] = chip.dataset.v
+    })
+    const savedCountry = $('sCountry')
+    if (savedCountry && savedCountry.value) S.f.country = savedCountry.value
     input.addEventListener('input', () => {
       S.q = input.value
       $('sClear').style.display = S.q ? 'flex' : 'none'
@@ -833,7 +935,7 @@ export function initSocial(ctx) {
     $('sFilters').addEventListener('change', (e) => {
       if (e.target.id === 'sCountry') { S.f.country = e.target.value; renderFilters(); runSearch() }
     })
-    $('sClear').style.display = 'none'
+    $('sClear').style.display = S.q ? 'flex' : 'none'
     S.built = true
   }
 
@@ -883,7 +985,7 @@ export function initSocial(ctx) {
     const mySeq = ++S.seq
 
     if (!S.all) {
-      body.innerHTML = '<div class="s-sk">' + '<div class="s-row sk"><i></i><b></b></div>'.repeat(6) + '</div>'
+      if (!body.children.length) body.innerHTML = '<div class="s-sk">' + '<div class="s-row sk"><i></i><b></b></div>'.repeat(6) + '</div>'
       await loadProfiles()
       renderFilters()
       if (mySeq !== S.seq) return
@@ -1029,6 +1131,7 @@ export function initSocial(ctx) {
     openSheet, closeSheet,
     openUserChoice, ucGo,
     openPostViewer, closePostViewer, openReels, closeReels, reelsMute, reelsMore, pvNav, pvMenu, pvEdit, pvSaveCaption, pvMove, pvSave, pvOpenOriginal, pvConfirmDelete, pvDelete,
+    kcViewerZoom: viewerZoomBy,
     openGallery, closeGallery, galleryFilter, galleryOpen,
     openSearch, searchOpen, searchMsg, searchRecent, searchClearRecent: clearRecent, searchPostOpen,
     closeOverlays,

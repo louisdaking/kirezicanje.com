@@ -111,7 +111,9 @@ function closeTop() {
   // big photo viewer
   const pv = $('pviewer')
   if (pv && pv.style.display && pv.style.display !== 'none') {
-    pv.querySelectorAll('video').forEach(v => v.pause()); pv.style.display = 'none'; pv.innerHTML = ''; return true
+    if (w.closePostViewer) w.closePostViewer()
+    else { pv.querySelectorAll('video').forEach(v => v.pause()); pv.style.display = 'none'; pv.innerHTML = '' }
+    return true
   }
   // small windows
   if (shown($('sheetModal')) && w.closeSheet) { w.closeSheet(); return true }

@@ -422,6 +422,36 @@ select.chip.on {
     max-height: 100%;
     object-fit: contain;
 }
+.pviewer.pv-open { animation: pvFadeIn .18s ease-out both; }
+.pviewer.pv-closing { animation: pvFadeOut .16s ease-in both; pointer-events: none; }
+.pv-stage img {
+    transform-origin: center;
+    touch-action: none;
+    -webkit-user-drag: none;
+    will-change: transform;
+}
+.pv-zoom {
+    position: absolute;
+    top: calc(78px + var(--safe-t));
+    right: 14px;
+    z-index: 4;
+    display: flex;
+    gap: 8px;
+}
+.pv-zoom button {
+    width: 40px;
+    height: 40px;
+    border: 1px solid rgba(255, 255, 255, .24);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .48);
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+    touch-action: manipulation;
+}
+body.kc-viewer-open { overflow: hidden; overscroll-behavior: none; }
+@keyframes pvFadeIn { from { opacity: 0; } }
+@keyframes pvFadeOut { to { opacity: 0; transform: scale(.985); } }
 .pv-top, .pv-bottom { position: absolute; left: 0; right: 0; z-index: 3; transition: opacity .2s ease; }
 .pv-top {
     top: 0;
@@ -488,6 +518,11 @@ select.chip.on {
 .pv-arrow.l { left: 12px; }
 .pv-arrow.r { right: 12px; }
 @media (hover: none) { .pv-arrow { display: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .pviewer.pv-open,
+    .pviewer.pv-closing { animation: none; }
+}
 
 /* hearts on dark screens (viewer + status) */
 .pviewer .likebtn, .sv-actions .likebtn { background-color: rgba(255, 255, 255, .14); opacity: .8; }

@@ -53,7 +53,9 @@ async function start() {
     const shell = new DOMParser().parseFromString(await response.text(), 'text/html')
     shell.body.querySelectorAll('script').forEach(script => script.remove())
     // keep every view in the page: main.js looks them all up by id, and each one is hidden by CSS until it is opened
-    document.getElementById('kcShell').replaceWith(...shell.body.childNodes)
+    const host = document.getElementById('kcShell')
+    host.style.display = 'contents'   // wrapper stays in the page (page-cache saves it) but does not affect layout
+    host.replaceChildren(...shell.body.childNodes)
   }
   // optional parts must never stop the app from starting
   await import('./install.js').catch(error => console.warn('[kirezi] install button failed', error))

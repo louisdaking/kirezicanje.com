@@ -1,4 +1,4 @@
-const CACHE_PREFIX = 'kc-page-snapshot:v3:'
+const CACHE_PREFIX = 'kc-page-snapshot:v4:'
 const shell = document.getElementById('kcShell')
 
 if (document.documentElement.style) document.documentElement.style.backgroundColor = '#1B0A17'
@@ -30,7 +30,7 @@ function restorePage() {
     if (!saved || !shell) return
     const snapshot = JSON.parse(saved)
     const userId = currentUserId()
-    if (!userId || snapshot.userId !== userId || typeof snapshot.html !== 'string') {
+    if (!userId || snapshot.userId !== userId || typeof snapshot.html !== 'string' || snapshot.html.length < 500) {
       sessionStorage.removeItem(cacheKey())
       return
     }

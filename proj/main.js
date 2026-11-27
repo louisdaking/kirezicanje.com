@@ -1794,7 +1794,7 @@ async function checkiflog() {
           <button class="photos" onclick="openGallery('${esc(u.id)}')">Photos</button>
           ${mine ? `<button class="photos" onclick="kcChangeAvatar()">📷 Change photo</button>` : ''}
           ${mine ? `<button class="photos" onclick="kcPushToggle()">🔔 Notifications</button>` : ''}
-          ${mine ? `<button class="photos" onclick="location.href='monetize.html'">Creator dashboard</button>` : ''}
+          ${mine ? `<button class="photos" onclick="location.href='monetize.html'">MONETIZATION</button>` : ''}
           ${mine ? `<button class="photos" onclick="location.href='app.html#reviews'">⭐ Rate app</button>` : ''}
           ${mine ? `<button class="logout" onclick="logout()">Log out</button>` : ''}
         </div>

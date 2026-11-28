@@ -355,19 +355,42 @@ export async function compress(file, opts = {}) {
     return { main, thumb, tiny, avatar }
   } catch (e) { return null }
 }
+// upload one file with a real progress callback (0..1). Same result shape as supabase upload.
+export async function putFile(supabase, bucket, path, blob, contentType, onPct) {
+  const { data } = await supabase.auth.getSession()
+  const tok = data && data.session && data.session.access_token
+  return await new Promise((res, rej) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${supabase.supabaseUrl}/storage/v1/object/${bucket}/${path.split('/').map(encodeURIComponent).join('/')}`)
+    xhr.setRequestHeader('Authorization', 'Bearer ' + (tok || supabase.supabaseKey))
+    xhr.setRequestHeader('apikey', supabase.supabaseKey)
+    xhr.setRequestHeader('x-upsert', 'false')
+    xhr.setRequestHeader('cache-control', 'max-age=3600')
+    xhr.setRequestHeader('Content-Type', contentType || 'application/octet-stream')
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && onPct) onPct(e.loaded / e.total) }
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? res({ path }) : rej(new Error('upload failed (' + xhr.status + ') ' + String(xhr.responseText || '').slice(0, 160)))
+    xhr.onerror = () => rej(new Error('Failed to fetch'))
+    xhr.ontimeout = () => rej(new Error('timeout'))
+    xhr.send(blob)
+  })
+}
 // upload main + the two small copies. returns the storage path of the main file (or throws like supabase does)
 export async function uploadPhoto(supabase, bucket, folder, file, extraOpts = {}) {
+  const onPct = extraOpts.onProgress          // optional: (0..1) while the main file goes up
   const c = await compress(file, extraOpts)
   const id = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()) + Math.random().toString(16).slice(2)
   if (!c) {
     const ext = ((file.name || '').split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
     const path = `${folder}/${id}.${ext}`
+    if (onPct) { await putFile(supabase, bucket, path, file, file.type, onPct); return { path, type: file.type, compressed: false } }
     const up = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type, upsert: false })
     if (up.error) throw up.error
     return { path: up.data.path, type: file.type, compressed: false }
   }
   const path = `${folder}/${id}-kc.jpg`
-  const up = await supabase.storage.from(bucket).upload(path, c.main, { contentType: 'image/jpeg', upsert: false })
+  const up = onPct
+    ? { data: await putFile(supabase, bucket, path, c.main, 'image/jpeg', onPct) }
+    : await supabase.storage.from(bucket).upload(path, c.main, { contentType: 'image/jpeg', upsert: false })
   if (up.error) throw up.error
   // the small copies are a bonus: if they fail the photo still works (the loader falls back)
   await Promise.all([

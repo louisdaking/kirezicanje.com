@@ -37,6 +37,19 @@
   var kcLoader = {
     splash: function (text) { var el = box('kcSplash', text); mount(el); return closer(el, 350, 12000) },
     busy: function (text) { var el = box('kcBusy' + Date.now(), text, 'kc-busy'); mount(el); return closer(el, 250, 60000) },
+    // hearts + a 0-100% bar:  var pr = kcLoader.progress('Posting…'); pr.set(40); pr.done()
+    progress: function (text) {
+      var el = box('kcProg' + Date.now(), text, 'kc-busy')
+      var wrap = document.createElement('div')
+      wrap.className = 'kc-prog'
+      wrap.innerHTML = '<div class="kc-prog-bar"><i></i></div><span class="kc-prog-n">0%</span>'
+      el.insertBefore(wrap, el.querySelector('.kc-dots'))
+      mount(el)
+      var fill = wrap.querySelector('i'), num = wrap.querySelector('.kc-prog-n'), cur = 0
+      var close = closer(el, 300, 900000)
+      function set(p) { p = Math.max(cur, Math.min(100, Math.round(p || 0))); cur = p; fill.style.width = p + '%'; num.textContent = p + '%' }
+      return { set: set, text: function (t) { var sm = el.querySelector('small'); if (sm) sm.textContent = t }, done: function () { set(100); setTimeout(close, 450) }, close: close }
+    },
     inline: function (text) { return '<div class="kc-inline" role="status">' + HEARTS + (text ? '<small>' + esc(text) + '</small>' : '') + '</div>' }
   }
   window.kcLoader = kcLoader

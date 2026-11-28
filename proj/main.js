@@ -1,7 +1,7 @@
 
 
 import { initSocial } from './social.js'
-import { uploadPhoto, compress } from './imgload.js'   // blur-up loading, data saver, smaller uploads   // search, gallery, full-screen viewer, user chooser, likes
+import { uploadPhoto, compress, putFile } from './imgload.js'   // blur-up loading, data saver, smaller uploads   // search, gallery, full-screen viewer, user chooser, likes
 import { offlineFetch, setCacheUser, clearOfflineCache, forceFresh, outbox, jobs, isNetworkError, savedSession, stale, initConnectionBar, registerServiceWorker } from './offline.js'   // works without internet
 import { initPush, enablePush, disablePush, notifyServer } from './push.js'   // notifications when the app is closed
 import { initCalls, callButtonsHTML } from './call.js'   // voice & video calls
@@ -131,20 +131,28 @@ function startMessageWatcher(me, hooks) {
 // what was done without internet is sent by these, one by one, when the internet is back
 const safeName = (n) => String(n || 'file').replace(/[^\w.\-]+/g, '_')
 jobs.on('post', async (p, blob) => {
-  let path, type = p.type
-  if ((p.type || '').startsWith('image/')) {
-    // the photo is made smaller first (and gets a light copy + a tiny preview), so it loads fast for everybody
-    const r = await uploadPhoto(supabase, 'posts', p.user_id, blob)
-    path = r.path; type = r.type
-  } else {
-    path = `${p.user_id}/${crypto.randomUUID()}-${safeName(p.name)}`
-    const up = await supabase.storage.from('posts').upload(path, blob, { contentType: p.type, upsert: false })
-    if (up.error) throw up.error
-    path = up.data.path
-  }
-  const { data: url } = supabase.storage.from('posts').getPublicUrl(path)
-  const ins = await supabase.from('posts').insert([{ user_id: p.user_id, kind: p.kind, media_url: url.publicUrl, media_type: type, caption: p.caption || null }])
-  if (ins.error) throw ins.error
+  // hearts + 0..100% while the post goes up
+  const pr = window.kcLoader.progress(p.kind === 'status' ? 'Posting your status…' : 'Posting…')
+  try {
+    let path, type = p.type
+    if ((p.type || '').startsWith('image/')) {
+      pr.set(3)
+      // the photo is made smaller first (and gets a light copy + a tiny preview), so it loads fast for everybody
+      const r = await uploadPhoto(supabase, 'posts', p.user_id, blob, { onProgress: (f) => pr.set(8 + f * 82) })
+      path = r.path; type = r.type
+    } else {
+      path = `${p.user_id}/${crypto.randomUUID()}-${safeName(p.name)}`
+      await putFile(supabase, 'posts', path, blob, p.type, (f) => pr.set(f * 92))
+    }
+    pr.set(94)
+    const { data: url } = supabase.storage.from('posts').getPublicUrl(path)
+    const ins = await supabase.from('posts').insert([{ user_id: p.user_id, kind: p.kind, media_url: url.publicUrl, media_type: type, caption: p.caption || null }]).select('id')
+    if (ins.error) throw ins.error
+    // the new post goes to the very top of the feed (until the next refresh after a while)
+    const newId = ins.data && ins.data[0] && ins.data[0].id
+    if (newId != null && p.kind === 'feed') { try { localStorage.setItem('kc_pin_top', JSON.stringify({ id: String(newId), at: Date.now() })) } catch { /* ignore */ } }
+    pr.done()
+  } catch (e) { pr.close(); throw e }
 })
 jobs.on('chatfile', async (p, blob) => {
   if ((p.type || '').startsWith('image/')) {          // a photo in a chat: smaller file, same look
@@ -777,6 +785,14 @@ function rankFeed(posts, me, talked, reshuffle) {
   })
   rows.sort((a, b) => (a.tier - b.tier) || (b.score - a.score) || (new Date(b.p.created_at) - new Date(a.p.created_at)))
   const out = rows.map(r => r.p)
+  // my newest post stays on top (for 30 minutes), above everything else
+  try {
+    const pin = JSON.parse(localStorage.getItem('kc_pin_top') || 'null')
+    if (pin && Date.now() - pin.at < 30 * 60 * 1000) {
+      const i = out.findIndex(p => String(p.id) === pin.id)
+      if (i > 0) out.unshift(out.splice(i, 1)[0])
+    }
+  } catch { /* ignore */ }
   feedOrder = out.map(p => String(p.id))
   if (!prev) { try { localStorage.setItem('kc_feed_top', JSON.stringify(feedOrder.slice(0, 3))) } catch { /* ignore */ } }
   return out
@@ -1099,7 +1115,7 @@ async function checkiflog() {
       // saved on the phone, then sent in the background (also when there is no internet)
       await jobs.add('post', { user_id: me, kind, caption, name: file.name, type: file.type }, file, null, me)
       closePostModal()
-      showmessage(navigator.onLine ? (kind === 'status' ? '📤 Status iriko irohererezwa…' : '📤 Post iriko irohererezwa…') : '📴 Nta internet. Izohererezwa internet nigaruka.')
+      if (!navigator.onLine) showmessage('📴 Nta internet. Izohererezwa internet nigaruka.')
       runJobs()
     }
     window.publishPost = publishPost
@@ -1961,7 +1977,7 @@ async function checkiflog() {
             showmessage('Your post is published ✅')
             const st = document.getElementById('statusPage')
             if (st && st.style.transform === 'scale(1)' && window.__refreshStatus) window.__refreshStatus()
-            else if (visible('allofthem')) peek()
+            else if (visible('allofthem')) { peek().then(() => window.scrollTo({ top: 0, behavior: 'smooth' })) }
           }
           const c = hooks.currentChat()
           if (c) openinbox(c)

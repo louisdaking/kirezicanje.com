@@ -94,6 +94,8 @@ function stopWatcher() {
   setBadge(0)
 }
 // listens to ALL new messages for me (not only the open chat)
+const seenMsgToast = new Set()
+let lastMsgToast = null
 function startMessageWatcher(me, hooks) {
   watcherHooks = hooks
   if (watcher && watcherUser === me) return
@@ -105,7 +107,9 @@ function startMessageWatcher(me, hooks) {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message', filter: `receiver_id=eq.${me}` }, (payload) => {
       const m = payload.new
       if (!watcherHooks) return
+      if (m.id != null) { if (seenMsgToast.has(m.id)) return; seenMsgToast.add(m.id); if (seenMsgToast.size > 300) seenMsgToast.clear() }     // the same message is never announced twice
       if (!watcherHooks.chatOpenWith(m.sender_id)) {
+        lastMsgToast = { at: Date.now(), from: m.sender_id, text: m.content || '' }
         const p = profileCache[m.sender_id]
         showmessage('new message' + (p ? ' from ' + p.full_name : '') + ' :\n' + (m.audio_url ? '🎤 Voice message' : m.file_url ? '📎 ' + (m.file_name || 'File') : m.content))
       }
@@ -114,6 +118,10 @@ function startMessageWatcher(me, hooks) {
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${me}` }, (payload) => {
       const n = payload.new
+      // the server also writes a row for a new message: that is the SAME news, so no second card
+      const sp = lastMsgToast && profileCache[lastMsgToast.from]
+      if (lastMsgToast && Date.now() - lastMsgToast.at < 10000 &&
+          (n.type === 'message' || (sp && n.title && String(n.title).includes(sp.full_name || '\u0000')) || (n.body && lastMsgToast.text && String(n.body).includes(lastMsgToast.text.slice(0, 30))))) return
       showmessage((n.title || 'KIREZI CANJE') + (n.body ? '\n' + n.body : ''))     // his name + what he did
     })
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'message', filter: `sender_id=eq.${me}` }, (payload) => {
@@ -303,13 +311,97 @@ function getidSvalue(ID) {
 };
 window.getidSvalue = getidSvalue
 
-let notifTimer = null
-function showmessage(text) {
-  showHTML('animation')
-  document.getElementById('not_mess').textContent = text
-  clearTimeout(notifTimer)
-  notifTimer = setTimeout(() => hideHTML('animation'), 4000)
+// ---------- toast: small dating-style cards. Same text = ONE card. Always leaves by itself, and can be closed / swiped away ----------
+const toastList = []
+const toastRecent = new Map()
+let toastHost = null
+function toastEsc(x) { return String(x).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])) }
+function toastSetup() {
+  if (toastHost && document.body.contains(toastHost)) return toastHost
+  if (!document.getElementById('kcToastCss')) {
+    const css = document.createElement('style'); css.id = 'kcToastCss'
+    css.textContent = `
+#kcToasts{position:fixed;z-index:1000000000;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:0 12px;pointer-events:none}
+.kct{position:relative;pointer-events:auto;width:100%;max-width:400px;display:flex;align-items:center;gap:12px;padding:13px 40px 15px 13px;border-radius:20px;overflow:hidden;touch-action:pan-y;cursor:pointer;
+  background:linear-gradient(135deg,rgba(255,255,255,.97),rgba(255,240,247,.97));border:1.5px solid transparent;
+  background-clip:padding-box;box-shadow:0 14px 34px rgba(255,46,147,.28),0 3px 10px rgba(27,10,23,.12);font-family:var(--body,system-ui,-apple-system,sans-serif);color:#2B1024;
+  animation:kctIn .38s cubic-bezier(.2,1.3,.4,1);transition:transform .25s ease,opacity .25s ease}
+.kct::before{content:"";position:absolute;inset:0;z-index:-1;margin:-1.5px;border-radius:inherit;background:linear-gradient(135deg,#FF2E93,#FF7A59)}
+.kct.out{opacity:0;transform:translateY(-14px) scale(.96)}
+.kct-ico{flex:none;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:21px;background:linear-gradient(135deg,#FF2E93,#FF7A59);box-shadow:0 5px 14px rgba(255,46,147,.4);animation:kctBeat 1.3s ease-in-out infinite}
+.kct-t{min-width:0;display:flex;flex-direction:column;gap:2px}
+.kct-t b{font:800 14.5px/1.25 var(--display,system-ui);letter-spacing:.1px;overflow-wrap:anywhere}
+.kct-t span{font:600 13px/1.35 var(--body,system-ui);color:#6B4A5E;white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.kct-x{position:absolute;top:7px;right:7px;width:26px;height:26px;border:0;border-radius:50%;background:rgba(255,46,147,.12);color:#C4207A;font:700 16px/1 system-ui;display:grid;place-items:center;padding:0;cursor:pointer}
+.kct-bar{position:absolute;left:0;bottom:0;height:3px;width:100%;transform-origin:left;background:linear-gradient(90deg,#FF2E93,#FF7A59);animation:kctBar linear forwards}
+.kct.bump{animation:kctBump .3s ease}
+@keyframes kctIn{from{opacity:0;transform:translateY(-22px) scale(.92)}to{opacity:1;transform:none}}
+@keyframes kctBar{to{transform:scaleX(0)}}
+@keyframes kctBeat{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+@keyframes kctBump{50%{transform:scale(1.03)}}
+@media (prefers-reduced-motion:reduce){.kct,.kct-ico{animation:none}}`
+    document.head.appendChild(css)
+  }
+  toastHost = document.createElement('div'); toastHost.id = 'kcToasts'; toastHost.setAttribute('aria-live', 'polite')
+  document.body.appendChild(toastHost)
+  return toastHost
 }
+function toastClose(t) {
+  if (t.closed) return
+  t.closed = true
+  clearTimeout(t.timer)
+  const i = toastList.indexOf(t); if (i >= 0) toastList.splice(i, 1)
+  t.el.classList.add('out')
+  setTimeout(() => t.el.remove(), 280)
+}
+function toastIcon(text) {
+  if (/^new message/i.test(text)) return '💌'
+  if (/❤|liked/i.test(text)) return '💖'
+  if (/follow/i.test(text)) return '🥰'
+  if (/✅/.test(text)) return '💘'
+  if (/📴|not allow|not deleted|error|failed/i.test(text)) return '💔'
+  return '💗'
+}
+function showmessage(text) {
+  text = String(text == null ? '' : text).trim()
+  if (!text) return
+  const now = Date.now()
+  const same = toastList.find((t) => t.text === text)
+  if (same) { same.el.classList.remove('bump'); void same.el.offsetWidth; same.el.classList.add('bump'); arm(same); return }   // same text = no second card
+  if (now - (toastRecent.get(text) || 0) < 2500) return                                                                         // it just left: do not flash it again
+  toastRecent.set(text, now)
+  if (toastRecent.size > 50) toastRecent.clear()
+  const host = toastSetup()
+  const nl = text.indexOf('\n')
+  const title = nl > 0 ? text.slice(0, nl).replace(/\s*:\s*$/, '') : text
+  const body = nl > 0 ? text.slice(nl + 1).trim() : ''
+  const el = document.createElement('div')
+  el.className = 'kct'; el.setAttribute('role', 'status')
+  el.innerHTML = `<span class="kct-ico" aria-hidden="true">${toastIcon(text)}</span><div class="kct-t"><b>${toastEsc(title)}</b>${body ? `<span>${toastEsc(body)}</span>` : ''}</div><button class="kct-x" type="button" aria-label="Close">×</button><i class="kct-bar"></i>`
+  const t = { text, el, timer: null, closed: false, born: Date.now() }
+  toastList.push(t)
+  host.appendChild(el)
+  while (toastList.length > 3) toastClose(toastList[0])
+  el.addEventListener('click', () => toastClose(t))                        // tap = ignore it
+  let x0 = null, y0 = null
+  el.addEventListener('touchstart', (e) => { x0 = e.touches[0].clientX; y0 = e.touches[0].clientY }, { passive: true })
+  el.addEventListener('touchmove', (e) => {                                   // swipe it away
+    if (x0 == null) return
+    const dx = e.touches[0].clientX - x0, dy = e.touches[0].clientY - y0
+    if (Math.abs(dx) > 60 || dy < -30) { x0 = null; toastClose(t) }
+  }, { passive: true })
+  arm(t)
+  function arm(tt) {
+    clearTimeout(tt.timer)
+    const ms = Math.min(8000, Math.max(4000, 3200 + text.length * 45))
+    const bar = tt.el.querySelector('.kct-bar')
+    if (bar) { bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = `kctBar ${ms}ms linear forwards` }
+    tt.timer = setTimeout(() => toastClose(tt), ms)
+  }
+}
+// safety: a card never stays when the app comes back from the background
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') toastList.slice().forEach((t) => { if (Date.now() - (t.born || 0) > 9000) toastClose(t) }) })
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toastList.slice().forEach(toastClose) })
 function closeWelcome() {
   const welcome = document.getElementById('kcWelcome')
   if (!welcome) return

@@ -1,6 +1,7 @@
 
 
 import { initSocial } from './social.js'
+import { initDaking } from './daking.js'
 import { uploadPhoto, compress, putFile } from './imgload.js'   // blur-up loading, data saver, smaller uploads   // search, gallery, full-screen viewer, user chooser, likes
 import { offlineFetch, setCacheUser, clearOfflineCache, forceFresh, outbox, jobs, isNetworkError, savedSession, stale, initConnectionBar, registerServiceWorker } from './offline.js'   // works without internet
 import { initPush, enablePush, disablePush, notifyServer } from './push.js'   // notifications when the app is closed
@@ -2079,6 +2080,7 @@ async function checkiflog() {
       }
       setCacheUser(me)
       startMessageWatcher(me, hooks)
+      initDaking({ supabase, me, toast: showmessage })      // floating Daking AI button + his chat screen
       // calls: ring the other phone through Supabase broadcast, talk directly with WebRTC
       if (window.__kcCalls && window.__kcCalls.me !== me) { window.__kcCalls.api.destroy(); window.__kcCalls = null }
       if (!window.__kcCalls) {

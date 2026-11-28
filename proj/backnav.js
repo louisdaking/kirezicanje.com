@@ -115,6 +115,8 @@ function closeTop() {
     else { pv.querySelectorAll('video').forEach(v => v.pause()); pv.style.display = 'none'; pv.innerHTML = '' }
     return true
   }
+  // Daking AI chat
+  if (w.kcAiOpen && w.kcAiOpen()) { w.kcAiClose(); return true }
   // small windows
   if (shown($('sheetModal')) && w.closeSheet) { w.closeSheet(); return true }
   if (shown($('likersModal')) && w.closeLikers) { w.closeLikers(); return true }
